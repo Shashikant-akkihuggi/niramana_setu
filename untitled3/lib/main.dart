@@ -10,6 +10,9 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'firebase_options.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'services/auth_service.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 enum Role { fieldManager, projectEngineer, ownerClient }
 
@@ -428,13 +431,27 @@ class RoleSelectionScreen extends StatelessWidget {
                         subtitle:
                             'Manage on-site tasks and oversee daily operations',
                         glowColor: primary,
-                        onTap: () {
-                          Navigator.of(context).push(
-                            MaterialPageRoute(
-                              builder: (_) =>
-                                  LoginScreen(selectedRole: Role.fieldManager),
-                            ),
-                          );
+                        onTap: () async {
+                          final user = FirebaseAuth.instance.currentUser;
+                          if (user != null) {
+                            // User is logged in via Google, store role and navigate to dashboard
+                            await FirebaseFirestore.instance.collection('users').doc(user.uid).set({
+                              'role': 'fieldManager',
+                              'email': user.email,
+                              'name': user.displayName,
+                              'createdAt': FieldValue.serverTimestamp(),
+                            }, SetOptions(merge: true));
+                            Navigator.of(context).pushReplacement(
+                              MaterialPageRoute(builder: (_) => const FieldManagerDashboard()),
+                            );
+                          } else {
+                            // Not logged in, go to login screen
+                            Navigator.of(context).push(
+                              MaterialPageRoute(
+                                builder: (_) => LoginScreen(selectedRole: Role.fieldManager),
+                              ),
+                            );
+                          }
                         },
                       ),
                       const SizedBox(height: 12),
@@ -445,14 +462,27 @@ class RoleSelectionScreen extends StatelessWidget {
                         subtitle:
                             'Design project plans and ensure technical accuracy',
                         glowColor: accent,
-                        onTap: () {
-                          Navigator.of(context).push(
-                            MaterialPageRoute(
-                              builder: (_) => LoginScreen(
-                                selectedRole: Role.projectEngineer,
+                        onTap: () async {
+                          final user = FirebaseAuth.instance.currentUser;
+                          if (user != null) {
+                            // User is logged in via Google, store role and navigate to dashboard
+                            await FirebaseFirestore.instance.collection('users').doc(user.uid).set({
+                              'role': 'projectEngineer',
+                              'email': user.email,
+                              'name': user.displayName,
+                              'createdAt': FieldValue.serverTimestamp(),
+                            }, SetOptions(merge: true));
+                            Navigator.of(context).pushReplacement(
+                              MaterialPageRoute(builder: (_) => const EngineerDashboard()),
+                            );
+                          } else {
+                            // Not logged in, go to login screen
+                            Navigator.of(context).push(
+                              MaterialPageRoute(
+                                builder: (_) => LoginScreen(selectedRole: Role.projectEngineer),
                               ),
-                            ),
-                          );
+                            );
+                          }
                         },
                       ),
                       const SizedBox(height: 12),
@@ -462,13 +492,27 @@ class RoleSelectionScreen extends StatelessWidget {
                         title: 'Owner / Client',
                         subtitle: 'Track project progress and manage contracts',
                         glowColor: primary,
-                        onTap: () {
-                          Navigator.of(context).push(
-                            MaterialPageRoute(
-                              builder: (_) =>
-                                  LoginScreen(selectedRole: Role.ownerClient),
-                            ),
-                          );
+                        onTap: () async {
+                          final user = FirebaseAuth.instance.currentUser;
+                          if (user != null) {
+                            // User is logged in via Google, store role and navigate to dashboard
+                            await FirebaseFirestore.instance.collection('users').doc(user.uid).set({
+                              'role': 'ownerClient',
+                              'email': user.email,
+                              'name': user.displayName,
+                              'createdAt': FieldValue.serverTimestamp(),
+                            }, SetOptions(merge: true));
+                            Navigator.of(context).pushReplacement(
+                              MaterialPageRoute(builder: (_) => const OwnerDashboard()),
+                            );
+                          } else {
+                            // Not logged in, go to login screen
+                            Navigator.of(context).push(
+                              MaterialPageRoute(
+                                builder: (_) => LoginScreen(selectedRole: Role.ownerClient),
+                              ),
+                            );
+                          }
                         },
                       ),
                       const SizedBox(height: 8),
@@ -781,6 +825,7 @@ class _LoginScreenState extends State<LoginScreen> {
   final _formKey = GlobalKey<FormState>();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
+  final _authService = AuthService();
   bool _obscure = true;
 
   static const Color primary = Color(0xFF136DEC);
@@ -1069,7 +1114,49 @@ class _LoginScreenState extends State<LoginScreen> {
                                           child: _GlassActionButton(
                                             icon: Icons.g_mobiledata,
                                             label: 'Google',
-                                            onTap: () {},
+                                            onTap: () async {
+                                              try {
+                                                final userCredential = await _authService.signInWithGoogle();
+                                                final user = userCredential.user;
+                                                if (user != null) {
+                                                  // Check if user exists in Firestore
+                                                  final userDoc = await FirebaseFirestore.instance
+                                                      .collection('users')
+                                                      .doc(user.uid)
+                                                      .get();
+
+                                                  if (userDoc.exists) {
+                                                    // Existing user - navigate to role-based dashboard
+                                                    final role = userDoc.data()?['role'];
+                                                    if (role == 'fieldManager') {
+                                                      Navigator.of(context).pushReplacement(
+                                                        MaterialPageRoute(builder: (_) => const FieldManagerDashboard()),
+                                                      );
+                                                    } else if (role == 'projectEngineer') {
+                                                      Navigator.of(context).pushReplacement(
+                                                        MaterialPageRoute(builder: (_) => const EngineerDashboard()),
+                                                      );
+                                                    } else if (role == 'ownerClient') {
+                                                      Navigator.of(context).pushReplacement(
+                                                        MaterialPageRoute(builder: (_) => const OwnerDashboard()),
+                                                      );
+                                                    }
+                                                  } else {
+                                                    // New user - navigate to role selection
+                                                    Navigator.of(context).pushReplacement(
+                                                      MaterialPageRoute(builder: (_) => const RoleSelectionScreen()),
+                                                    );
+                                                  }
+                                                }
+                                              } catch (e) {
+                                                ScaffoldMessenger.of(context).showSnackBar(
+                                                  SnackBar(
+                                                    content: Text('Google sign-in failed. Please try again.'),
+                                                    backgroundColor: Colors.red,
+                                                  ),
+                                                );
+                                              }
+                                            },
                                           ),
                                         ),
                                         const SizedBox(width: 12),

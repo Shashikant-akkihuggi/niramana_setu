@@ -1,4 +1,6 @@
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:google_sign_in/google_sign_in.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 /// Service class for handling Firebase Authentication operations.
 /// Provides methods for email/password login, registration, phone OTP, and logout.
@@ -67,5 +69,35 @@ class AuthService {
   /// Sign out the current user.
   Future<void> logout() async {
     await _auth.signOut();
+  }
+
+  /// Sign in with Google.
+  /// Throws FirebaseAuthException on failure.
+  Future<UserCredential> signInWithGoogle() async {
+    try {
+      final GoogleSignInAccount? googleUser = await GoogleSignIn().signIn();
+      if (googleUser == null) {
+        throw FirebaseAuthException(
+          code: 'user-cancelled',
+          message: 'User cancelled the sign-in process',
+        );
+      }
+
+      final GoogleSignInAuthentication googleAuth = await googleUser.authentication;
+      final OAuthCredential credential = GoogleAuthProvider.credential(
+        accessToken: googleAuth.accessToken,
+        idToken: googleAuth.idToken,
+      );
+
+      return await _auth.signInWithCredential(credential);
+    } catch (e) {
+      if (e is FirebaseAuthException) {
+        throw e;
+      }
+      throw FirebaseAuthException(
+        code: 'google-sign-in-failed',
+        message: 'Google sign-in failed: ${e.toString()}',
+      );
+    }
   }
 }
