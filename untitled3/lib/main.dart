@@ -106,9 +106,17 @@ class WelcomeScreen extends StatelessWidget {
                             ),
                           ),
                           padding: const EdgeInsets.all(20),
-                          child: CustomPaint(
-                            painter: _LineArtPlannerPainter(),
-                            child: const SizedBox.expand(),
+                          child: Center(
+                            child: Padding(
+                              padding: const EdgeInsets.all(8.0),
+                              child: ClipRRect(
+                                borderRadius: BorderRadius.circular(24),
+                                child: Image.asset(
+                                  'assets/images/splash_illustration.png',
+                                  fit: BoxFit.contain,
+                                ),
+                              ),
+                            ),
                           ),
                         ),
                       ),
