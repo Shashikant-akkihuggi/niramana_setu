@@ -7,12 +7,11 @@ import 'firebase_options.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'services/offline_sync_service.dart';
 import 'package:firebase_core/firebase_core.dart';
-import 'package:flutter/material.dart';
-import 'package:firebase_core/firebase_core.dart';
-import 'firebase_options.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'services/auth_service.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'common/localization/app_language_controller.dart';
+import 'common/screens/language_selection_screen.dart';
 
 enum Role { fieldManager, projectEngineer, ownerClient }
 
@@ -37,6 +36,10 @@ void main() async {
   // Initialize Offline Sync Service
   await OfflineSyncService().init();
 
+  // Initialize Language Controller
+  // This loads the saved language preference from Hive
+  await AppLanguageController().initialize();
+
   print("Firebase connected & Hive initialized!");
   runApp(const MyApp());
 }
@@ -46,23 +49,137 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'Niramana Setu',
-      debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        scaffoldBackgroundColor: Colors.white,
-        useMaterial3: true,
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: const Color(0xFF4F4F4F),
-          brightness: Brightness.light,
-        ),
-        textTheme: Theme.of(context).textTheme.apply(
-          bodyColor: const Color(0xFF2E2E2E),
-          displayColor: const Color(0xFF2E2E2E),
-        ),
-      ),
-      home: const WelcomeScreen(),
+    // Wrap with AnimatedBuilder to listen to language changes
+    // This allows hot language switching without app restart
+    return AnimatedBuilder(
+      animation: AppLanguageController(),
+      builder: (context, child) {
+        return MaterialApp(
+          title: 'Niramana Setu',
+          debugShowCheckedModeBanner: false,
+          theme: ThemeData(
+            scaffoldBackgroundColor: Colors.white,
+            useMaterial3: true,
+            colorScheme: ColorScheme.fromSeed(
+              seedColor: const Color(0xFF4F4F4F),
+              brightness: Brightness.light,
+            ),
+            textTheme: Theme.of(context).textTheme.apply(
+              bodyColor: const Color(0xFF2E2E2E),
+              displayColor: const Color(0xFF2E2E2E),
+            ),
+          ),
+          home: const AuthWrapper(),
+        );
+      },
     );
+  }
+}
+
+// Auth Wrapper to handle auto-login
+class AuthWrapper extends StatefulWidget {
+  const AuthWrapper({super.key});
+
+  @override
+  State<AuthWrapper> createState() => _AuthWrapperState();
+}
+
+class _AuthWrapperState extends State<AuthWrapper> {
+  bool _isLoading = true;
+  Widget _homeWidget = const WelcomeScreen();
+  final AppLanguageController _langController = AppLanguageController();
+
+  @override
+  void initState() {
+    super.initState();
+    _checkAuthState();
+  }
+
+  Future<void> _checkAuthState() async {
+    // First check if user has selected a language
+    // If not, force language selection before anything else
+    if (!_langController.hasSelectedLanguage) {
+      setState(() {
+        _homeWidget = LanguageSelectionScreen(
+          onLanguageSelected: () {
+            // After language selection, check auth state
+            _checkAuthState();
+          },
+        );
+        _isLoading = false;
+      });
+      return;
+    }
+
+    final user = FirebaseAuth.instance.currentUser;
+    
+    if (user != null) {
+      // User is logged in, fetch their role from Firestore
+      try {
+        final userDoc = await FirebaseFirestore.instance
+            .collection('users')
+            .doc(user.uid)
+            .get();
+        
+        if (userDoc.exists) {
+          final role = userDoc.data()?['role'];
+          
+          // Navigate to appropriate dashboard based on role
+          if (role == 'fieldManager') {
+            setState(() {
+              _homeWidget = const FieldManagerDashboard();
+              _isLoading = false;
+            });
+          } else if (role == 'projectEngineer') {
+            setState(() {
+              _homeWidget = const EngineerDashboard();
+              _isLoading = false;
+            });
+          } else if (role == 'ownerClient') {
+            setState(() {
+              _homeWidget = const OwnerDashboard();
+              _isLoading = false;
+            });
+          } else {
+            // Role not found, show welcome screen
+            setState(() {
+              _homeWidget = const WelcomeScreen();
+              _isLoading = false;
+            });
+          }
+        } else {
+          // User exists in Auth but not in Firestore, show welcome screen
+          setState(() {
+            _homeWidget = const WelcomeScreen();
+            _isLoading = false;
+          });
+        }
+      } catch (e) {
+        // Error fetching user data, show welcome screen
+        setState(() {
+          _homeWidget = const WelcomeScreen();
+          _isLoading = false;
+        });
+      }
+    } else {
+      // No user logged in, show welcome screen
+      setState(() {
+        _homeWidget = const WelcomeScreen();
+        _isLoading = false;
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_isLoading) {
+      return const Scaffold(
+        body: Center(
+          child: CircularProgressIndicator(),
+        ),
+      );
+    }
+    return _homeWidget;
   }
 }
 
@@ -155,9 +272,20 @@ class WelcomeScreen extends StatelessWidget {
                       children: [
                         ElevatedButton(
                           onPressed: () {
+                            // Navigate to Language Selection first
+                            // After language is selected, user will proceed to role selection
                             Navigator.of(context).push(
                               MaterialPageRoute(
-                                builder: (_) => const RoleSelectionScreen(),
+                                builder: (_) => LanguageSelectionScreen(
+                                  onLanguageSelected: () {
+                                    // After language selection, navigate to role selection
+                                    Navigator.of(context).pushReplacement(
+                                      MaterialPageRoute(
+                                        builder: (_) => const RoleSelectionScreen(),
+                                      ),
+                                    );
+                                  },
+                                ),
                               ),
                             );
                           },
@@ -441,9 +569,10 @@ class RoleSelectionScreen extends StatelessWidget {
                                 .set({
                                   'role': 'fieldManager',
                                   'email': user.email,
-                                  'name': user.displayName,
+                                  'fullName': user.displayName,
                                   'createdAt': FieldValue.serverTimestamp(),
                                 }, SetOptions(merge: true));
+                            if (!context.mounted) return;
                             Navigator.of(context).pushReplacement(
                               MaterialPageRoute(
                                 builder: (_) => const FieldManagerDashboard(),
@@ -479,9 +608,10 @@ class RoleSelectionScreen extends StatelessWidget {
                                 .set({
                                   'role': 'projectEngineer',
                                   'email': user.email,
-                                  'name': user.displayName,
+                                  'fullName': user.displayName,
                                   'createdAt': FieldValue.serverTimestamp(),
                                 }, SetOptions(merge: true));
+                            if (!context.mounted) return;
                             Navigator.of(context).pushReplacement(
                               MaterialPageRoute(
                                 builder: (_) => const EngineerDashboard(),
@@ -516,9 +646,10 @@ class RoleSelectionScreen extends StatelessWidget {
                                 .set({
                                   'role': 'ownerClient',
                                   'email': user.email,
-                                  'name': user.displayName,
+                                  'fullName': user.displayName,
                                   'createdAt': FieldValue.serverTimestamp(),
                                 }, SetOptions(merge: true));
+                            if (!context.mounted) return;
                             Navigator.of(context).pushReplacement(
                               MaterialPageRoute(
                                 builder: (_) => const OwnerDashboard(),
@@ -864,9 +995,9 @@ class _LoginScreenState extends State<LoginScreen> {
     setState(() => _isLoading = true);
 
     try {
-      final userCredential = await _authService.loginWithEmail(
-        _emailController.text.trim(),
-        _passwordController.text,
+      final userCredential = await FirebaseAuth.instance.signInWithEmailAndPassword(
+        email: _emailController.text.trim(),
+        password: _passwordController.text,
       );
       final user = userCredential.user;
 
@@ -884,9 +1015,13 @@ class _LoginScreenState extends State<LoginScreen> {
           final role = userDoc.data()?['role'];
           _navigateToDashboard(role);
         } else {
-          // New user - navigate to role selection
-          Navigator.of(context).pushReplacement(
-            MaterialPageRoute(builder: (_) => const RoleSelectionScreen()),
+          // User exists in Auth but not in Firestore
+          if (!mounted) return;
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Account not found. Please create an account.'),
+              backgroundColor: Colors.red,
+            ),
           );
         }
       }
@@ -898,10 +1033,17 @@ class _LoginScreenState extends State<LoginScreen> {
           errorMessage = 'No account found with this email.';
         } else if (e.code == 'wrong-password') {
           errorMessage = 'Incorrect password.';
+        } else if (e.code == 'invalid-email') {
+          errorMessage = 'Invalid email address.';
+        } else if (e.code == 'user-disabled') {
+          errorMessage = 'This account has been disabled.';
+        } else if (e.code == 'invalid-credential') {
+          errorMessage = 'Invalid email or password.';
         } else {
-          errorMessage = e.message ?? errorMessage;
+          errorMessage = 'Login failed. Please try again.';
         }
       }
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(errorMessage), backgroundColor: Colors.red),
       );
@@ -1194,6 +1336,7 @@ class _LoginScreenState extends State<LoginScreen> {
                                                     // Existing user - navigate to role-based dashboard
                                                     final role = userDoc
                                                         .data()?['role'];
+                                                    if (!mounted) return;
                                                     if (role ==
                                                         'fieldManager') {
                                                       Navigator.of(
@@ -1227,6 +1370,7 @@ class _LoginScreenState extends State<LoginScreen> {
                                                     }
                                                   } else {
                                                     // New user - navigate to role selection
+                                                    if (!mounted) return;
                                                     Navigator.of(
                                                       context,
                                                     ).pushReplacement(
@@ -1238,10 +1382,11 @@ class _LoginScreenState extends State<LoginScreen> {
                                                   }
                                                 }
                                               } catch (e) {
+                                                if (!mounted) return;
                                                 ScaffoldMessenger.of(
                                                   context,
                                                 ).showSnackBar(
-                                                  SnackBar(
+                                                  const SnackBar(
                                                     content: Text(
                                                       'Google sign-in failed. Please try again.',
                                                     ),
@@ -2156,18 +2301,13 @@ class _SignupScreenState extends State<SignupScreen> {
   final _formKey = GlobalKey<FormState>();
   final _nameController = TextEditingController();
   final _emailController = TextEditingController();
-  final _phoneController = TextEditingController();
   final _passwordController = TextEditingController();
   final _confirmController = TextEditingController();
-  final _otpController = TextEditingController();
   final _authService = AuthService();
   bool _obscure1 = true;
   bool _obscure2 = true;
   bool _agreed = false;
-  bool _isOtpSent = false;
-  bool _isOtpVerified = false;
   bool _isLoading = false;
-  String _verificationId = '';
 
   static const Color primary = Color(0xFF136DEC);
   static const Color accent = Color(0xFF7A5AF8);
@@ -2176,138 +2316,28 @@ class _SignupScreenState extends State<SignupScreen> {
   void dispose() {
     _nameController.dispose();
     _emailController.dispose();
-    _phoneController.dispose();
     _passwordController.dispose();
     _confirmController.dispose();
-    _otpController.dispose();
     super.dispose();
   }
 
-  // Send OTP to phone number
-  Future<void> _sendOTP() async {
-    if (_phoneController.text.trim().isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Please enter a mobile number'),
-          backgroundColor: Colors.red,
-        ),
-      );
-      return;
-    }
-
-    String phoneNumber = _phoneController.text.trim();
-    // Ensure phone number has country code
-    if (!phoneNumber.startsWith('+')) {
-      phoneNumber = '+91$phoneNumber';
-    }
-
-    setState(() => _isLoading = true);
-
-    try {
-      _verificationId = await _authService.sendOTP(phoneNumber);
-      setState(() {
-        _isOtpSent = true;
-        _isLoading = false;
-      });
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('OTP sent successfully!'),
-          backgroundColor: Color(0xFF2E7D32),
-        ),
-      );
-    } catch (e) {
-      setState(() => _isLoading = false);
-      String errorMessage = 'Failed to send OTP. Please try again.';
-      if (e is FirebaseAuthException) {
-        if (e.code == 'invalid-phone-number') {
-          errorMessage = 'Please enter a valid mobile number';
-        } else {
-          errorMessage = e.message ?? errorMessage;
-        }
-      }
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(errorMessage), backgroundColor: Colors.red),
-      );
-    }
-  }
-
-  // Verify OTP
-  Future<void> _verifyOTP() async {
-    final otp = _otpController.text.trim();
-    if (otp.isEmpty || otp.length != 6) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Please enter a valid 6-digit OTP'),
-          backgroundColor: Colors.red,
-        ),
-      );
-      return;
-    }
-
-    setState(() => _isLoading = true);
-
-    try {
-      await _authService.verifyOTP(_verificationId, otp);
-      
-      setState(() {
-        _isOtpVerified = true;
-        _isLoading = false;
-      });
-      
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Phone number verified successfully!'),
-          backgroundColor: Color(0xFF2E7D32),
-        ),
-      );
-      
-      // Sign out immediately - we only verified phone, not creating account yet
-      await FirebaseAuth.instance.signOut();
-      
-    } catch (e) {
-      setState(() => _isLoading = false);
-      String errorMessage = 'Invalid OTP. Please try again.';
-      if (e is FirebaseAuthException) {
-        if (e.code == 'invalid-verification-code') {
-          errorMessage = 'Invalid OTP. Please try again.';
-        } else {
-          errorMessage = e.message ?? errorMessage;
-        }
-      }
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(errorMessage), backgroundColor: Colors.red),
-      );
-    }
-  }
-
-  // Create account after OTP verification
+  // Create account with email and password
   Future<void> _createAccount() async {
-    if (!_isOtpVerified) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Please verify your phone number first'),
-          backgroundColor: Colors.red,
-        ),
-      );
-      return;
-    }
-
     setState(() => _isLoading = true);
 
     try {
       // Create user with email and password
-      final userCredential = await _authService.registerWithEmail(
-        _emailController.text.trim(),
-        _passwordController.text,
+      final userCredential = await FirebaseAuth.instance.createUserWithEmailAndPassword(
+        email: _emailController.text.trim(),
+        password: _passwordController.text,
       );
       final user = userCredential.user;
 
       if (user != null) {
         // Store user data in Firestore with role
         await FirebaseFirestore.instance.collection('users').doc(user.uid).set({
-          'name': _nameController.text.trim(),
+          'fullName': _nameController.text.trim(),
           'email': _emailController.text.trim(),
-          'phone': _phoneController.text.trim(),
           'role': widget.selectedRole == Role.fieldManager
               ? 'fieldManager'
               : widget.selectedRole == Role.projectEngineer
@@ -2325,6 +2355,7 @@ class _SignupScreenState extends State<SignupScreen> {
                 ? 'projectEngineer'
                 : 'ownerClient';
 
+        if (!mounted) return;
         if (role == 'fieldManager') {
           Navigator.of(context).pushAndRemoveUntil(
             MaterialPageRoute(builder: (_) => const FieldManagerDashboard()),
@@ -2348,10 +2379,15 @@ class _SignupScreenState extends State<SignupScreen> {
       if (e is FirebaseAuthException) {
         if (e.code == 'email-already-in-use') {
           errorMessage = 'An account with this email already exists.';
+        } else if (e.code == 'weak-password') {
+          errorMessage = 'Password is too weak. Use at least 6 characters.';
+        } else if (e.code == 'invalid-email') {
+          errorMessage = 'Invalid email address.';
         } else {
-          errorMessage = e.message ?? errorMessage;
+          errorMessage = 'Account creation failed. Please try again.';
         }
       }
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(errorMessage), backgroundColor: Colors.red),
       );
@@ -2499,86 +2535,6 @@ class _SignupScreenState extends State<SignupScreen> {
                                       ? 'Enter email'
                                       : null,
                                 ),
-                                const SizedBox(height: 12),
-                                
-                                // Mobile number field
-                                _glassField(
-                                  controller: _phoneController,
-                                  hint: 'Mobile number',
-                                  icon: Icons.phone_outlined,
-                                  keyboardType: TextInputType.phone,
-                                  enabled: !_isOtpVerified,
-                                  validator: (v) {
-                                    if (v == null || v.trim().isEmpty)
-                                      return 'Enter mobile number';
-                                    final cleanNumber = v.replaceAll(RegExp(r'[^\d]'), '');
-                                    if (cleanNumber.length != 10 && cleanNumber.length != 12)
-                                      return 'Enter a valid mobile number';
-                                    return null;
-                                  },
-                                  suffix: _isOtpVerified
-                                      ? const Icon(Icons.check_circle, color: Color(0xFF2E7D32))
-                                      : null,
-                                ),
-                                const SizedBox(height: 8),
-                                
-                                // Send OTP / Verify OTP button
-                                if (!_isOtpVerified) ...[
-                                  if (!_isOtpSent)
-                                    Align(
-                                      alignment: Alignment.centerRight,
-                                      child: TextButton(
-                                        onPressed: _isLoading ? null : _sendOTP,
-                                        style: TextButton.styleFrom(
-                                          foregroundColor: primary,
-                                        ),
-                                        child: const Text('Send OTP'),
-                                      ),
-                                    ),
-                                  const SizedBox(height: 4),
-                                ],
-                                
-                                // OTP field - shown after OTP is sent
-                                if (_isOtpSent && !_isOtpVerified) ...[
-                                  _glassField(
-                                    controller: _otpController,
-                                    hint: 'Enter 6-digit OTP',
-                                    icon: Icons.sms_outlined,
-                                    keyboardType: TextInputType.number,
-                                    validator: (v) {
-                                      if (v == null || v.trim().isEmpty)
-                                        return 'Enter OTP';
-                                      if (v.length != 6)
-                                        return 'OTP must be 6 digits';
-                                      return null;
-                                    },
-                                  ),
-                                  const SizedBox(height: 8),
-                                  Row(
-                                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                    children: [
-                                      TextButton(
-                                        onPressed: _isLoading ? null : _sendOTP,
-                                        style: TextButton.styleFrom(
-                                          foregroundColor: const Color(0xFF424242),
-                                        ),
-                                        child: const Text('Resend OTP'),
-                                      ),
-                                      TextButton(
-                                        onPressed: _isLoading ? null : _verifyOTP,
-                                        style: TextButton.styleFrom(
-                                          foregroundColor: primary,
-                                          textStyle: const TextStyle(
-                                          fontWeight: FontWeight.w600,
-                                          ),
-                                        ),
-                                        child: const Text('Verify OTP'),
-                                      ),
-                                    ],
-                                  ),
-                                  const SizedBox(height: 4),
-                                ],
-                                
                                 const SizedBox(height: 12),
                                 _glassField(
                                   controller: _passwordController,

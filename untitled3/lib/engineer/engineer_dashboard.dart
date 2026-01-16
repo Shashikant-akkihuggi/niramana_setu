@@ -10,6 +10,7 @@ import 'profile_page.dart';
 import 'plot_review/plot_review_screen.dart';
 import '../common/screens/milestone_timeline_screen.dart';
 import '../common/screens/milestone_hub_screen.dart';
+import '../common/services/logout_service.dart';
 
 // Engineer Dashboard for Niramana Setu
 // Theme: Glassmorphism with blue (#136DEC) and purple (#7A5AF8)
@@ -107,6 +108,17 @@ class _EngineerDashboardState extends State<EngineerDashboard> {
           ),
         ),
         actions: [
+          // Logout button
+          IconButton(
+            icon: const Icon(
+              Icons.logout,
+              color: Color(0xFF1F1F1F),
+              size: 22,
+            ),
+            onPressed: () => LogoutService.logout(context),
+            tooltip: 'Logout',
+          ),
+          const SizedBox(width: 4),
           Padding(
             padding: const EdgeInsets.only(right: 16),
             child: Container(

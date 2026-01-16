@@ -4,6 +4,7 @@ import 'dart:ui' as ui;
 import 'manager_pages.dart';
 import 'attendance.dart' as att;
 import '../common/notifications.dart';
+import '../common/services/logout_service.dart';
 
 // Dashboard shell for Field Manager: Scaffold + AppBar + BottomNavigationBar + Page switching
 class FieldManagerDashboard extends StatefulWidget {
@@ -259,6 +260,25 @@ Widget glassHeader(BuildContext context) {
                     ),
                   ),
               ],
+            ),
+            SizedBox(width: 8),
+            // Logout button
+            GestureDetector(
+              onTap: () => LogoutService.logout(context),
+              child: Container(
+                padding: EdgeInsets.all(9),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  shape: BoxShape.circle,
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.10),
+                      blurRadius: 12,
+                    ),
+                  ],
+                ),
+                child: Icon(Icons.logout, size: 22),
+              ),
             ),
           ],
         ),

@@ -5,9 +5,16 @@ import 'invoices.dart';
 import 'plot_analysis/plot_entry_screen.dart';
 import '../common/screens/milestone_timeline_screen.dart';
 import '../common/screens/milestone_hub_screen.dart';
+import '../common/services/logout_service.dart';
 
-class OwnerDashboard extends StatelessWidget {
+class OwnerDashboard extends StatefulWidget {
   const OwnerDashboard({super.key});
+
+  @override
+  State<OwnerDashboard> createState() => _OwnerDashboardState();
+}
+
+class _OwnerDashboardState extends State<OwnerDashboard> {
 
   static const Color primary = Color(0xFF136DEC);
   static const Color accent = Color(0xFF7A5AF8);
@@ -24,8 +31,8 @@ class OwnerDashboard extends StatelessWidget {
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
                 colors: [
-                  primary.withValues(alpha: 0.12),
-                  accent.withValues(alpha: 0.10),
+                  _OwnerDashboardState.primary.withValues(alpha: 0.12),
+                  _OwnerDashboardState.accent.withValues(alpha: 0.10),
                   Colors.white,
                 ],
                 stops: const [0.0, 0.45, 1.0],
@@ -36,7 +43,7 @@ class OwnerDashboard extends StatelessWidget {
           SafeArea(
             child: Column(
               children: [
-                // Header glass bar
+                // Header glass bar with logout button
                 Padding(
                   padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
                   child: ClipRRect(
@@ -57,7 +64,7 @@ class OwnerDashboard extends StatelessWidget {
                               offset: const Offset(0, 8),
                             ),
                             BoxShadow(
-                              color: primary.withValues(alpha: 0.16),
+                              color: _OwnerDashboardState.primary.withValues(alpha: 0.16),
                               blurRadius: 26,
                               spreadRadius: 1,
                             ),
@@ -89,17 +96,18 @@ class OwnerDashboard extends StatelessWidget {
                                 ],
                               ),
                             ),
+                            // Profile icon
                             Container(
                               height: 36,
                               width: 36,
                               decoration: BoxDecoration(
                                 shape: BoxShape.circle,
                                 gradient: const LinearGradient(
-                                  colors: [primary, accent],
+                                  colors: [_OwnerDashboardState.primary, _OwnerDashboardState.accent],
                                 ),
                                 boxShadow: [
                                   BoxShadow(
-                                    color: primary.withValues(alpha: 0.25),
+                                    color: _OwnerDashboardState.primary.withValues(alpha: 0.25),
                                     blurRadius: 14,
                                     spreadRadius: 1,
                                   ),
@@ -110,6 +118,17 @@ class OwnerDashboard extends StatelessWidget {
                                 color: Colors.white,
                                 size: 20,
                               ),
+                            ),
+                            const SizedBox(width: 8),
+                            // Logout button
+                            IconButton(
+                              icon: const Icon(
+                                Icons.logout,
+                                color: Color(0xFF1F1F1F),
+                                size: 22,
+                              ),
+                              onPressed: () => LogoutService.logout(context),
+                              tooltip: 'Logout',
                             ),
                           ],
                         ),
@@ -247,7 +266,7 @@ class OwnerDashboard extends StatelessWidget {
     );
   }
 
-  static void _openPlaceholder(BuildContext context, String title) {
+  void _openPlaceholder(BuildContext context, String title) {
     Navigator.of(
       context,
     ).push(MaterialPageRoute(builder: (_) => _Placeholder(title: title)));
@@ -263,6 +282,9 @@ class _StatCard extends StatelessWidget {
     required this.icon,
     required this.value,
   });
+
+  static const Color primary = Color(0xFF136DEC);
+  static const Color accent = Color(0xFF7A5AF8);
 
   @override
   Widget build(BuildContext context) {
@@ -293,11 +315,11 @@ class _StatCard extends StatelessWidget {
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
                   gradient: const LinearGradient(
-                    colors: [OwnerDashboard.primary, OwnerDashboard.accent],
+                    colors: [primary, accent],
                   ),
                   boxShadow: [
                     BoxShadow(
-                      color: OwnerDashboard.primary.withValues(alpha: 0.25),
+                      color: primary.withValues(alpha: 0.25),
                       blurRadius: 14,
                     ),
                   ],
@@ -361,6 +383,9 @@ class _ActionCard extends StatefulWidget {
 class _ActionCardState extends State<_ActionCard> {
   bool _pressed = false;
 
+  static const Color primary = Color(0xFF136DEC);
+  static const Color accent = Color(0xFF7A5AF8);
+
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
@@ -388,7 +413,7 @@ class _ActionCardState extends State<_ActionCard> {
                     offset: const Offset(0, 8),
                   ),
                   BoxShadow(
-                    color: OwnerDashboard.primary.withValues(alpha: 0.12),
+                    color: primary.withValues(alpha: 0.12),
                     blurRadius: 24,
                     spreadRadius: 1,
                   ),
@@ -404,11 +429,11 @@ class _ActionCardState extends State<_ActionCard> {
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
                       gradient: const LinearGradient(
-                        colors: [OwnerDashboard.primary, OwnerDashboard.accent],
+                        colors: [primary, accent],
                       ),
                       boxShadow: [
                         BoxShadow(
-                          color: OwnerDashboard.primary.withValues(alpha: 0.28),
+                          color: primary.withValues(alpha: 0.28),
                           blurRadius: 18,
                           spreadRadius: 1,
                         ),
