@@ -435,20 +435,27 @@ class RoleSelectionScreen extends StatelessWidget {
                           final user = FirebaseAuth.instance.currentUser;
                           if (user != null) {
                             // User is logged in via Google, store role and navigate to dashboard
-                            await FirebaseFirestore.instance.collection('users').doc(user.uid).set({
-                              'role': 'fieldManager',
-                              'email': user.email,
-                              'name': user.displayName,
-                              'createdAt': FieldValue.serverTimestamp(),
-                            }, SetOptions(merge: true));
+                            await FirebaseFirestore.instance
+                                .collection('users')
+                                .doc(user.uid)
+                                .set({
+                                  'role': 'fieldManager',
+                                  'email': user.email,
+                                  'name': user.displayName,
+                                  'createdAt': FieldValue.serverTimestamp(),
+                                }, SetOptions(merge: true));
                             Navigator.of(context).pushReplacement(
-                              MaterialPageRoute(builder: (_) => const FieldManagerDashboard()),
+                              MaterialPageRoute(
+                                builder: (_) => const FieldManagerDashboard(),
+                              ),
                             );
                           } else {
                             // Not logged in, go to login screen
                             Navigator.of(context).push(
                               MaterialPageRoute(
-                                builder: (_) => LoginScreen(selectedRole: Role.fieldManager),
+                                builder: (_) => LoginScreen(
+                                  selectedRole: Role.fieldManager,
+                                ),
                               ),
                             );
                           }
@@ -466,20 +473,27 @@ class RoleSelectionScreen extends StatelessWidget {
                           final user = FirebaseAuth.instance.currentUser;
                           if (user != null) {
                             // User is logged in via Google, store role and navigate to dashboard
-                            await FirebaseFirestore.instance.collection('users').doc(user.uid).set({
-                              'role': 'projectEngineer',
-                              'email': user.email,
-                              'name': user.displayName,
-                              'createdAt': FieldValue.serverTimestamp(),
-                            }, SetOptions(merge: true));
+                            await FirebaseFirestore.instance
+                                .collection('users')
+                                .doc(user.uid)
+                                .set({
+                                  'role': 'projectEngineer',
+                                  'email': user.email,
+                                  'name': user.displayName,
+                                  'createdAt': FieldValue.serverTimestamp(),
+                                }, SetOptions(merge: true));
                             Navigator.of(context).pushReplacement(
-                              MaterialPageRoute(builder: (_) => const EngineerDashboard()),
+                              MaterialPageRoute(
+                                builder: (_) => const EngineerDashboard(),
+                              ),
                             );
                           } else {
                             // Not logged in, go to login screen
                             Navigator.of(context).push(
                               MaterialPageRoute(
-                                builder: (_) => LoginScreen(selectedRole: Role.projectEngineer),
+                                builder: (_) => LoginScreen(
+                                  selectedRole: Role.projectEngineer,
+                                ),
                               ),
                             );
                           }
@@ -496,20 +510,26 @@ class RoleSelectionScreen extends StatelessWidget {
                           final user = FirebaseAuth.instance.currentUser;
                           if (user != null) {
                             // User is logged in via Google, store role and navigate to dashboard
-                            await FirebaseFirestore.instance.collection('users').doc(user.uid).set({
-                              'role': 'ownerClient',
-                              'email': user.email,
-                              'name': user.displayName,
-                              'createdAt': FieldValue.serverTimestamp(),
-                            }, SetOptions(merge: true));
+                            await FirebaseFirestore.instance
+                                .collection('users')
+                                .doc(user.uid)
+                                .set({
+                                  'role': 'ownerClient',
+                                  'email': user.email,
+                                  'name': user.displayName,
+                                  'createdAt': FieldValue.serverTimestamp(),
+                                }, SetOptions(merge: true));
                             Navigator.of(context).pushReplacement(
-                              MaterialPageRoute(builder: (_) => const OwnerDashboard()),
+                              MaterialPageRoute(
+                                builder: (_) => const OwnerDashboard(),
+                              ),
                             );
                           } else {
                             // Not logged in, go to login screen
                             Navigator.of(context).push(
                               MaterialPageRoute(
-                                builder: (_) => LoginScreen(selectedRole: Role.ownerClient),
+                                builder: (_) =>
+                                    LoginScreen(selectedRole: Role.ownerClient),
                               ),
                             );
                           }
@@ -827,6 +847,7 @@ class _LoginScreenState extends State<LoginScreen> {
   final _passwordController = TextEditingController();
   final _authService = AuthService();
   bool _obscure = true;
+  bool _isLoading = false;
 
   static const Color primary = Color(0xFF136DEC);
   static const Color accent = Color(0xFF7A5AF8);
@@ -836,6 +857,72 @@ class _LoginScreenState extends State<LoginScreen> {
     _emailController.dispose();
     _passwordController.dispose();
     super.dispose();
+  }
+
+  // Login with email and password
+  Future<void> _loginWithEmail() async {
+    setState(() => _isLoading = true);
+
+    try {
+      final userCredential = await _authService.loginWithEmail(
+        _emailController.text.trim(),
+        _passwordController.text,
+      );
+      final user = userCredential.user;
+
+      if (user != null) {
+        // Check if user exists in Firestore
+        final userDoc = await FirebaseFirestore.instance
+            .collection('users')
+            .doc(user.uid)
+            .get();
+
+        setState(() => _isLoading = false);
+
+        if (userDoc.exists) {
+          // Existing user - navigate to role-based dashboard
+          final role = userDoc.data()?['role'];
+          _navigateToDashboard(role);
+        } else {
+          // New user - navigate to role selection
+          Navigator.of(context).pushReplacement(
+            MaterialPageRoute(builder: (_) => const RoleSelectionScreen()),
+          );
+        }
+      }
+    } catch (e) {
+      setState(() => _isLoading = false);
+      String errorMessage = 'Login failed. Please check your credentials.';
+      if (e is FirebaseAuthException) {
+        if (e.code == 'user-not-found') {
+          errorMessage = 'No account found with this email.';
+        } else if (e.code == 'wrong-password') {
+          errorMessage = 'Incorrect password.';
+        } else {
+          errorMessage = e.message ?? errorMessage;
+        }
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(errorMessage), backgroundColor: Colors.red),
+      );
+    }
+  }
+
+  // Navigate to appropriate dashboard based on role
+  void _navigateToDashboard(String? role) {
+    if (role == 'fieldManager') {
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(builder: (_) => const FieldManagerDashboard()),
+      );
+    } else if (role == 'projectEngineer') {
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(builder: (_) => const EngineerDashboard()),
+      );
+    } else if (role == 'ownerClient') {
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(builder: (_) => const OwnerDashboard()),
+      );
+    }
   }
 
   @override
@@ -1004,12 +1091,12 @@ class _LoginScreenState extends State<LoginScreen> {
                                   children: [
                                     _glassTextField(
                                       controller: _emailController,
-                                      hint: 'Email or phone',
+                                      hint: 'Email',
                                       icon: Icons.alternate_email,
                                       keyboardType: TextInputType.emailAddress,
                                       validator: (v) {
                                         if (v == null || v.trim().isEmpty)
-                                          return 'Enter your email or phone';
+                                          return 'Enter your email';
                                         return null;
                                       },
                                     ),
@@ -1038,7 +1125,9 @@ class _LoginScreenState extends State<LoginScreen> {
                                         return null;
                                       },
                                     ),
-                                    const SizedBox(height: 8),
+                                    const SizedBox(height: 12),
+
+                                    // Forgot password
                                     Align(
                                       alignment: Alignment.centerRight,
                                       child: TextButton(
@@ -1063,45 +1152,16 @@ class _LoginScreenState extends State<LoginScreen> {
                                     ),
                                     const SizedBox(height: 4),
 
-                                    // 3D Glowing Primary Button
+                                    // Login button
                                     _GlowingButton(
-                                      text: 'Log In',
-                                      onTap: () {
-                                        if (_formKey.currentState?.validate() ??
-                                            false) {
-                                          if (widget.selectedRole ==
-                                              Role.fieldManager) {
-                                            Navigator.of(
-                                              context,
-                                            ).pushReplacement(
-                                              MaterialPageRoute(
-                                                builder: (_) =>
-                                                    const FieldManagerDashboard(),
-                                              ),
-                                            );
-                                          } else if (widget.selectedRole ==
-                                              Role.projectEngineer) {
-                                            Navigator.of(
-                                              context,
-                                            ).pushReplacement(
-                                              MaterialPageRoute(
-                                                builder: (_) =>
-                                                    const EngineerDashboard(),
-                                              ),
-                                            );
-                                          } else if (widget.selectedRole ==
-                                              Role.ownerClient) {
-                                            Navigator.of(
-                                              context,
-                                            ).pushReplacement(
-                                              MaterialPageRoute(
-                                                builder: (_) =>
-                                                    const OwnerDashboard(),
-                                              ),
-                                            );
-                                          }
-                                        }
-                                      },
+                                      text: _isLoading ? 'Please wait...' : 'Log In',
+                                      onTap: _isLoading
+                                          ? () {}
+                                          : () {
+                                              if (_formKey.currentState?.validate() ?? false) {
+                                                _loginWithEmail();
+                                              }
+                                            },
                                     ),
 
                                     const SizedBox(height: 14),
@@ -1116,42 +1176,75 @@ class _LoginScreenState extends State<LoginScreen> {
                                             label: 'Google',
                                             onTap: () async {
                                               try {
-                                                final userCredential = await _authService.signInWithGoogle();
-                                                final user = userCredential.user;
+                                                final userCredential =
+                                                    await _authService
+                                                        .signInWithGoogle();
+                                                final user =
+                                                    userCredential.user;
                                                 if (user != null) {
                                                   // Check if user exists in Firestore
-                                                  final userDoc = await FirebaseFirestore.instance
-                                                      .collection('users')
-                                                      .doc(user.uid)
-                                                      .get();
+                                                  final userDoc =
+                                                      await FirebaseFirestore
+                                                          .instance
+                                                          .collection('users')
+                                                          .doc(user.uid)
+                                                          .get();
 
                                                   if (userDoc.exists) {
                                                     // Existing user - navigate to role-based dashboard
-                                                    final role = userDoc.data()?['role'];
-                                                    if (role == 'fieldManager') {
-                                                      Navigator.of(context).pushReplacement(
-                                                        MaterialPageRoute(builder: (_) => const FieldManagerDashboard()),
+                                                    final role = userDoc
+                                                        .data()?['role'];
+                                                    if (role ==
+                                                        'fieldManager') {
+                                                      Navigator.of(
+                                                        context,
+                                                      ).pushReplacement(
+                                                        MaterialPageRoute(
+                                                          builder: (_) =>
+                                                              const FieldManagerDashboard(),
+                                                        ),
                                                       );
-                                                    } else if (role == 'projectEngineer') {
-                                                      Navigator.of(context).pushReplacement(
-                                                        MaterialPageRoute(builder: (_) => const EngineerDashboard()),
+                                                    } else if (role ==
+                                                        'projectEngineer') {
+                                                      Navigator.of(
+                                                        context,
+                                                      ).pushReplacement(
+                                                        MaterialPageRoute(
+                                                          builder: (_) =>
+                                                              const EngineerDashboard(),
+                                                        ),
                                                       );
-                                                    } else if (role == 'ownerClient') {
-                                                      Navigator.of(context).pushReplacement(
-                                                        MaterialPageRoute(builder: (_) => const OwnerDashboard()),
+                                                    } else if (role ==
+                                                        'ownerClient') {
+                                                      Navigator.of(
+                                                        context,
+                                                      ).pushReplacement(
+                                                        MaterialPageRoute(
+                                                          builder: (_) =>
+                                                              const OwnerDashboard(),
+                                                        ),
                                                       );
                                                     }
                                                   } else {
                                                     // New user - navigate to role selection
-                                                    Navigator.of(context).pushReplacement(
-                                                      MaterialPageRoute(builder: (_) => const RoleSelectionScreen()),
+                                                    Navigator.of(
+                                                      context,
+                                                    ).pushReplacement(
+                                                      MaterialPageRoute(
+                                                        builder: (_) =>
+                                                            const RoleSelectionScreen(),
+                                                      ),
                                                     );
                                                   }
                                                 }
                                               } catch (e) {
-                                                ScaffoldMessenger.of(context).showSnackBar(
+                                                ScaffoldMessenger.of(
+                                                  context,
+                                                ).showSnackBar(
                                                   SnackBar(
-                                                    content: Text('Google sign-in failed. Please try again.'),
+                                                    content: Text(
+                                                      'Google sign-in failed. Please try again.',
+                                                    ),
                                                     backgroundColor: Colors.red,
                                                   ),
                                                 );
@@ -2063,11 +2156,18 @@ class _SignupScreenState extends State<SignupScreen> {
   final _formKey = GlobalKey<FormState>();
   final _nameController = TextEditingController();
   final _emailController = TextEditingController();
+  final _phoneController = TextEditingController();
   final _passwordController = TextEditingController();
   final _confirmController = TextEditingController();
+  final _otpController = TextEditingController();
+  final _authService = AuthService();
   bool _obscure1 = true;
   bool _obscure2 = true;
   bool _agreed = false;
+  bool _isOtpSent = false;
+  bool _isOtpVerified = false;
+  bool _isLoading = false;
+  String _verificationId = '';
 
   static const Color primary = Color(0xFF136DEC);
   static const Color accent = Color(0xFF7A5AF8);
@@ -2076,9 +2176,186 @@ class _SignupScreenState extends State<SignupScreen> {
   void dispose() {
     _nameController.dispose();
     _emailController.dispose();
+    _phoneController.dispose();
     _passwordController.dispose();
     _confirmController.dispose();
+    _otpController.dispose();
     super.dispose();
+  }
+
+  // Send OTP to phone number
+  Future<void> _sendOTP() async {
+    if (_phoneController.text.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please enter a mobile number'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    String phoneNumber = _phoneController.text.trim();
+    // Ensure phone number has country code
+    if (!phoneNumber.startsWith('+')) {
+      phoneNumber = '+91$phoneNumber';
+    }
+
+    setState(() => _isLoading = true);
+
+    try {
+      _verificationId = await _authService.sendOTP(phoneNumber);
+      setState(() {
+        _isOtpSent = true;
+        _isLoading = false;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('OTP sent successfully!'),
+          backgroundColor: Color(0xFF2E7D32),
+        ),
+      );
+    } catch (e) {
+      setState(() => _isLoading = false);
+      String errorMessage = 'Failed to send OTP. Please try again.';
+      if (e is FirebaseAuthException) {
+        if (e.code == 'invalid-phone-number') {
+          errorMessage = 'Please enter a valid mobile number';
+        } else {
+          errorMessage = e.message ?? errorMessage;
+        }
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(errorMessage), backgroundColor: Colors.red),
+      );
+    }
+  }
+
+  // Verify OTP
+  Future<void> _verifyOTP() async {
+    final otp = _otpController.text.trim();
+    if (otp.isEmpty || otp.length != 6) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please enter a valid 6-digit OTP'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    setState(() => _isLoading = true);
+
+    try {
+      await _authService.verifyOTP(_verificationId, otp);
+      
+      setState(() {
+        _isOtpVerified = true;
+        _isLoading = false;
+      });
+      
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Phone number verified successfully!'),
+          backgroundColor: Color(0xFF2E7D32),
+        ),
+      );
+      
+      // Sign out immediately - we only verified phone, not creating account yet
+      await FirebaseAuth.instance.signOut();
+      
+    } catch (e) {
+      setState(() => _isLoading = false);
+      String errorMessage = 'Invalid OTP. Please try again.';
+      if (e is FirebaseAuthException) {
+        if (e.code == 'invalid-verification-code') {
+          errorMessage = 'Invalid OTP. Please try again.';
+        } else {
+          errorMessage = e.message ?? errorMessage;
+        }
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(errorMessage), backgroundColor: Colors.red),
+      );
+    }
+  }
+
+  // Create account after OTP verification
+  Future<void> _createAccount() async {
+    if (!_isOtpVerified) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please verify your phone number first'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    setState(() => _isLoading = true);
+
+    try {
+      // Create user with email and password
+      final userCredential = await _authService.registerWithEmail(
+        _emailController.text.trim(),
+        _passwordController.text,
+      );
+      final user = userCredential.user;
+
+      if (user != null) {
+        // Store user data in Firestore with role
+        await FirebaseFirestore.instance.collection('users').doc(user.uid).set({
+          'name': _nameController.text.trim(),
+          'email': _emailController.text.trim(),
+          'phone': _phoneController.text.trim(),
+          'role': widget.selectedRole == Role.fieldManager
+              ? 'fieldManager'
+              : widget.selectedRole == Role.projectEngineer
+                  ? 'projectEngineer'
+                  : 'ownerClient',
+          'createdAt': FieldValue.serverTimestamp(),
+        });
+
+        setState(() => _isLoading = false);
+
+        // Navigate to role-based dashboard
+        final role = widget.selectedRole == Role.fieldManager
+            ? 'fieldManager'
+            : widget.selectedRole == Role.projectEngineer
+                ? 'projectEngineer'
+                : 'ownerClient';
+
+        if (role == 'fieldManager') {
+          Navigator.of(context).pushAndRemoveUntil(
+            MaterialPageRoute(builder: (_) => const FieldManagerDashboard()),
+            (route) => false,
+          );
+        } else if (role == 'projectEngineer') {
+          Navigator.of(context).pushAndRemoveUntil(
+            MaterialPageRoute(builder: (_) => const EngineerDashboard()),
+            (route) => false,
+          );
+        } else if (role == 'ownerClient') {
+          Navigator.of(context).pushAndRemoveUntil(
+            MaterialPageRoute(builder: (_) => const OwnerDashboard()),
+            (route) => false,
+          );
+        }
+      }
+    } catch (e) {
+      setState(() => _isLoading = false);
+      String errorMessage = 'Account creation failed. Please try again.';
+      if (e is FirebaseAuthException) {
+        if (e.code == 'email-already-in-use') {
+          errorMessage = 'An account with this email already exists.';
+        } else {
+          errorMessage = e.message ?? errorMessage;
+        }
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(errorMessage), backgroundColor: Colors.red),
+      );
+    }
   }
 
   @override
@@ -2214,14 +2491,94 @@ class _SignupScreenState extends State<SignupScreen> {
                                 const SizedBox(height: 12),
                                 _glassField(
                                   controller: _emailController,
-                                  hint: 'Email or phone',
+                                  hint: 'Email',
                                   icon: Icons.alternate_email,
                                   keyboardType: TextInputType.emailAddress,
                                   validator: (v) =>
                                       (v == null || v.trim().isEmpty)
-                                      ? 'Enter email or phone'
+                                      ? 'Enter email'
                                       : null,
                                 ),
+                                const SizedBox(height: 12),
+                                
+                                // Mobile number field
+                                _glassField(
+                                  controller: _phoneController,
+                                  hint: 'Mobile number',
+                                  icon: Icons.phone_outlined,
+                                  keyboardType: TextInputType.phone,
+                                  enabled: !_isOtpVerified,
+                                  validator: (v) {
+                                    if (v == null || v.trim().isEmpty)
+                                      return 'Enter mobile number';
+                                    final cleanNumber = v.replaceAll(RegExp(r'[^\d]'), '');
+                                    if (cleanNumber.length != 10 && cleanNumber.length != 12)
+                                      return 'Enter a valid mobile number';
+                                    return null;
+                                  },
+                                  suffix: _isOtpVerified
+                                      ? const Icon(Icons.check_circle, color: Color(0xFF2E7D32))
+                                      : null,
+                                ),
+                                const SizedBox(height: 8),
+                                
+                                // Send OTP / Verify OTP button
+                                if (!_isOtpVerified) ...[
+                                  if (!_isOtpSent)
+                                    Align(
+                                      alignment: Alignment.centerRight,
+                                      child: TextButton(
+                                        onPressed: _isLoading ? null : _sendOTP,
+                                        style: TextButton.styleFrom(
+                                          foregroundColor: primary,
+                                        ),
+                                        child: const Text('Send OTP'),
+                                      ),
+                                    ),
+                                  const SizedBox(height: 4),
+                                ],
+                                
+                                // OTP field - shown after OTP is sent
+                                if (_isOtpSent && !_isOtpVerified) ...[
+                                  _glassField(
+                                    controller: _otpController,
+                                    hint: 'Enter 6-digit OTP',
+                                    icon: Icons.sms_outlined,
+                                    keyboardType: TextInputType.number,
+                                    validator: (v) {
+                                      if (v == null || v.trim().isEmpty)
+                                        return 'Enter OTP';
+                                      if (v.length != 6)
+                                        return 'OTP must be 6 digits';
+                                      return null;
+                                    },
+                                  ),
+                                  const SizedBox(height: 8),
+                                  Row(
+                                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                    children: [
+                                      TextButton(
+                                        onPressed: _isLoading ? null : _sendOTP,
+                                        style: TextButton.styleFrom(
+                                          foregroundColor: const Color(0xFF424242),
+                                        ),
+                                        child: const Text('Resend OTP'),
+                                      ),
+                                      TextButton(
+                                        onPressed: _isLoading ? null : _verifyOTP,
+                                        style: TextButton.styleFrom(
+                                          foregroundColor: primary,
+                                          textStyle: const TextStyle(
+                                          fontWeight: FontWeight.w600,
+                                          ),
+                                        ),
+                                        child: const Text('Verify OTP'),
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 4),
+                                ],
+                                
                                 const SizedBox(height: 12),
                                 _glassField(
                                   controller: _passwordController,
@@ -2291,22 +2648,21 @@ class _SignupScreenState extends State<SignupScreen> {
                                 ),
                                 const SizedBox(height: 6),
                                 _GlowingButton(
-                                  text: 'Create Account',
-                                  onTap: () {
-                                    if ((_formKey.currentState?.validate() ??
-                                            false) &&
-                                        _agreed) {
-                                      // After signup, go to Login -> then Dashboard flow
-                                      Navigator.of(context).pushAndRemoveUntil(
-                                        MaterialPageRoute(
-                                          builder: (_) => LoginScreen(
-                                            selectedRole: widget.selectedRole,
-                                          ),
-                                        ),
-                                        (route) => false,
-                                      );
-                                    }
-                                  },
+                                  text: _isLoading ? 'Please wait...' : 'Create Account',
+                                  onTap: _isLoading
+                                      ? () {}
+                                      : () {
+                                          if ((_formKey.currentState?.validate() ?? false) && _agreed) {
+                                            _createAccount();
+                                          } else if (!_agreed) {
+                                            ScaffoldMessenger.of(context).showSnackBar(
+                                              const SnackBar(
+                                                content: Text('Please accept the Terms & Privacy Policy'),
+                                                backgroundColor: Colors.red,
+                                              ),
+                                            );
+                                          }
+                                        },
                                 ),
                               ],
                             ),
@@ -2348,6 +2704,7 @@ class _SignupScreenState extends State<SignupScreen> {
     String? Function(String?)? validator,
     bool obscure = false,
     Widget? suffix,
+    bool enabled = true,
   }) {
     return Container(
       decoration: BoxDecoration(
@@ -2367,6 +2724,7 @@ class _SignupScreenState extends State<SignupScreen> {
         obscureText: obscure,
         keyboardType: keyboardType,
         validator: validator,
+        enabled: enabled,
         decoration: InputDecoration(
           prefixIcon: Icon(icon, color: const Color(0xFF7B7B7B)),
           suffixIcon: suffix,
@@ -2418,9 +2776,9 @@ class _GlowingButton extends StatelessWidget {
         ),
         padding: const EdgeInsets.symmetric(vertical: 16),
         alignment: Alignment.center,
-        child: const Text(
-          'Log In',
-          style: TextStyle(
+        child: Text(
+          text,
+          style: const TextStyle(
             color: Colors.white,
             fontWeight: FontWeight.w700,
             fontSize: 16,
