@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'dart:ui' as ui;
-import '../manager/material_request.dart' show MaterialRequestModel, materialRequests;
+import '../services/material_request_service.dart';
 
 class _ThemeMA {
   static const Color primary = Color(0xFF136DEC);
@@ -21,16 +21,17 @@ class _MaterialApprovalScreenState extends State<MaterialApprovalScreen> {
       MaterialPageRoute(
         builder: (_) => _ApprovalDetail(
           request: req,
-          onDecision: (status, comment) {
-            setState(() {
-              req.status = status; // approved/rejected
-              req.comment = comment;
-            });
+          onDecision: (status, comment) async {
+            await MaterialRequestService.updateMaterialRequestStatus(req.id, status, comment);
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text('Request ${status}')),
+              );
+            }
           },
         ),
       ),
     );
-    setState(() {});
   }
 
   Color _statusColor(String s) {
@@ -57,66 +58,95 @@ class _MaterialApprovalScreenState extends State<MaterialApprovalScreen> {
         children: [
           _Background(),
           SafeArea(
-            child: ListView.separated(
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
-              itemCount: materialRequests.length,
-              separatorBuilder: (_, __) => const SizedBox(height: 12),
-              itemBuilder: (context, i) {
-                final req = materialRequests[i];
-                final c = _statusColor(req.status);
-                return GestureDetector(
-                  onTap: () => _openDetail(req),
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(18),
-                    child: BackdropFilter(
-                      filter: ui.ImageFilter.blur(sigmaX: 16, sigmaY: 16),
-                      child: Container(
-                        decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha: 0.55),
-                          borderRadius: BorderRadius.circular(18),
-                          border: Border.all(color: Colors.white.withValues(alpha: 0.45)),
-                          boxShadow: [
-                            BoxShadow(color: Colors.black.withValues(alpha: 0.06), blurRadius: 16, offset: const Offset(0, 8)),
-                            BoxShadow(color: _ThemeMA.primary.withValues(alpha: 0.12), blurRadius: 24, spreadRadius: 1),
-                          ],
-                        ),
-                        padding: const EdgeInsets.all(14),
-                        child: Row(
-                          children: [
-                            Container(
-                              height: 44,
-                              width: 44,
-                              decoration: BoxDecoration(
-                                shape: BoxShape.circle,
-                                gradient: const LinearGradient(colors: [_ThemeMA.primary, _ThemeMA.accent]),
-                              ),
-                              child: const Icon(Icons.inventory_2_rounded, color: Colors.white),
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(req.material, style: const TextStyle(fontWeight: FontWeight.w800, color: Color(0xFF1F2937))),
-                                  const SizedBox(height: 4),
-                                  Text('Qty: ${req.quantity}   •   Priority: ${req.priority}', style: const TextStyle(color: Color(0xFF4B5563))),
-                                ],
-                              ),
-                            ),
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                              decoration: BoxDecoration(
-                                color: c.withValues(alpha: 0.12),
-                                borderRadius: BorderRadius.circular(999),
-                                border: Border.all(color: c.withValues(alpha: 0.35)),
-                              ),
-                              child: Text(req.status[0].toUpperCase() + req.status.substring(1), style: TextStyle(color: c, fontWeight: FontWeight.w700, fontSize: 12)),
-                            ),
-                          ],
-                        ),
+            child: StreamBuilder<List<MaterialRequestModel>>(
+              stream: MaterialRequestService.getEngineerMaterialRequests(),
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Center(child: CircularProgressIndicator());
+                }
+                
+                if (snapshot.hasError) {
+                  return Center(
+                    child: Text('Error: ${snapshot.error}'),
+                  );
+                }
+                
+                final materialRequests = snapshot.data ?? [];
+                
+                if (materialRequests.isEmpty) {
+                  return const Center(
+                    child: Text(
+                      'No material requests to review',
+                      style: TextStyle(
+                        fontSize: 16,
+                        color: Color(0xFF6B7280),
                       ),
                     ),
-                  ),
+                  );
+                }
+                
+                return ListView.separated(
+                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+                  itemCount: materialRequests.length,
+                  separatorBuilder: (_, __) => const SizedBox(height: 12),
+                  itemBuilder: (context, i) {
+                    final req = materialRequests[i];
+                    final c = _statusColor(req.status);
+                    return GestureDetector(
+                      onTap: () => _openDetail(req),
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(18),
+                        child: BackdropFilter(
+                          filter: ui.ImageFilter.blur(sigmaX: 16, sigmaY: 16),
+                          child: Container(
+                            decoration: BoxDecoration(
+                              color: Colors.white.withValues(alpha: 0.55),
+                              borderRadius: BorderRadius.circular(18),
+                              border: Border.all(color: Colors.white.withValues(alpha: 0.45)),
+                              boxShadow: [
+                                BoxShadow(color: Colors.black.withValues(alpha: 0.06), blurRadius: 16, offset: const Offset(0, 8)),
+                                BoxShadow(color: _ThemeMA.primary.withValues(alpha: 0.12), blurRadius: 24, spreadRadius: 1),
+                              ],
+                            ),
+                            padding: const EdgeInsets.all(14),
+                            child: Row(
+                              children: [
+                                Container(
+                                  height: 44,
+                                  width: 44,
+                                  decoration: BoxDecoration(
+                                    shape: BoxShape.circle,
+                                    gradient: const LinearGradient(colors: [_ThemeMA.primary, _ThemeMA.accent]),
+                                  ),
+                                  child: const Icon(Icons.inventory_2_rounded, color: Colors.white),
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(req.material, style: const TextStyle(fontWeight: FontWeight.w800, color: Color(0xFF1F2937))),
+                                      const SizedBox(height: 4),
+                                      Text('Qty: ${req.quantity}   •   Priority: ${req.priority}', style: const TextStyle(color: Color(0xFF4B5563))),
+                                    ],
+                                  ),
+                                ),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                  decoration: BoxDecoration(
+                                    color: c.withValues(alpha: 0.12),
+                                    borderRadius: BorderRadius.circular(999),
+                                    border: Border.all(color: c.withValues(alpha: 0.35)),
+                                  ),
+                                  child: Text(req.status[0].toUpperCase() + req.status.substring(1), style: TextStyle(color: c, fontWeight: FontWeight.w700, fontSize: 12)),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    );
+                  },
                 );
               },
             ),
@@ -129,7 +159,7 @@ class _MaterialApprovalScreenState extends State<MaterialApprovalScreen> {
 
 class _ApprovalDetail extends StatelessWidget {
   final MaterialRequestModel request;
-  final void Function(String status, String comment) onDecision;
+  final Future<void> Function(String status, String comment) onDecision;
   const _ApprovalDetail({required this.request, required this.onDecision});
 
   Color _statusColor(String s) {
@@ -292,12 +322,11 @@ class _ApprovalDetail extends StatelessWidget {
                             elevation: 0,
                             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                           ),
-                          onPressed: () {
-                            onDecision('approved', commentController.text.trim());
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(content: Text('Request approved')),
-                            );
-                            Navigator.of(context).pop();
+                          onPressed: () async {
+                            await onDecision('approved', commentController.text.trim());
+                            if (context.mounted) {
+                              Navigator.of(context).pop();
+                            }
                           },
                           icon: const Icon(Icons.check_circle),
                           label: const Text('Approve'),
@@ -312,12 +341,11 @@ class _ApprovalDetail extends StatelessWidget {
                             elevation: 0,
                             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                           ),
-                          onPressed: () {
-                            onDecision('rejected', commentController.text.trim());
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(content: Text('Request rejected')),
-                            );
-                            Navigator.of(context).pop();
+                          onPressed: () async {
+                            await onDecision('rejected', commentController.text.trim());
+                            if (context.mounted) {
+                              Navigator.of(context).pop();
+                            }
                           },
                           icon: const Icon(Icons.cancel),
                           label: const Text('Reject'),

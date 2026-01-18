@@ -8,9 +8,20 @@ import 'materials_page.dart';
 import 'approvals_page.dart';
 import 'profile_page.dart';
 import 'plot_review/plot_review_screen.dart';
+import 'engineer_project_card.dart';
+import 'create_project_screen.dart';
 import '../common/screens/milestone_timeline_screen.dart';
 import '../common/screens/milestone_hub_screen.dart';
 import '../common/services/logout_service.dart';
+import '../common/widgets/public_id_display.dart';
+import '../services/project_service.dart';
+import '../services/real_time_project_service.dart';
+import '../services/dpr_service.dart';
+import '../services/material_request_service.dart';
+import '../common/models/project_model.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import '../common/project_context.dart';
 
 // Engineer Dashboard for Niramana Setu
 // Theme: Glassmorphism with blue (#136DEC) and purple (#7A5AF8)
@@ -32,12 +43,20 @@ class _EngineerDashboardState extends State<EngineerDashboard> {
     Navigator.push(context, MaterialPageRoute(builder: (_) => page));
   }
 
-  final List<Widget> _pages = [
-    EngineerHomeScreen(),
-    EngineerMaterialsScreen(),
-    EngineerApprovalsScreen(),
-    EngineerProfileScreen(),
-  ];
+  final List<Widget> _pages = ProjectContext.activeProjectId == null 
+    ? [
+        // STATE 1: ENGINEER NOT INSIDE ANY PROJECT - 3 pages only
+        EngineerHomeScreen(), // Home - shows project list + Create Project
+        EngineerSocialScreen(), // Social - placeholder
+        EngineerProfileScreen(), // Profile
+      ]
+    : [
+        // STATE 2: ENGINEER INSIDE A PROJECT - Full pages
+        EngineerHomeScreen(), // Home with features
+        EngineerProjectsScreen(), // Projects
+        EngineerApprovalsScreen(), // Approvals
+        EngineerProfileScreen(), // Profile
+      ];
 
   @override
   Widget build(BuildContext context) {
@@ -185,27 +204,50 @@ class _EngineerDashboardState extends State<EngineerDashboard> {
           SafeArea(child: _pages[_index]),
         ],
       ),
+      floatingActionButton: (ProjectContext.activeProjectId == null && _index == 0) || 
+                           (ProjectContext.activeProjectId != null && _index == 1) // Show on Projects tab when inside project, or Home when no project
+          ? FloatingActionButton.extended(
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => const CreateProjectScreen(),
+                  ),
+                );
+              },
+              icon: const Icon(Icons.add),
+              label: const Text('Create Project'),
+              backgroundColor: EngineerDashboard.primary,
+              foregroundColor: Colors.white,
+            )
+          : null,
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _index,
         onTap: (i) {
-          setState(() => _index = i);
+          // Handle navigation with bounds checking
+          final maxIndex = ProjectContext.activeProjectId == null ? 2 : 3;
+          if (i <= maxIndex) {
+            setState(() => _index = i);
+          }
         },
         type: BottomNavigationBarType.fixed,
         selectedItemColor: const Color(0xFF136DEC),
         unselectedItemColor: Colors.grey,
         showUnselectedLabels: true,
-        items: const [
-          BottomNavigationBarItem(icon: Icon(Icons.home), label: "Dashboard"),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.inventory),
-            label: "Materials",
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.verified),
-            label: "Approvals",
-          ),
-          BottomNavigationBarItem(icon: Icon(Icons.person), label: "Profile"),
-        ],
+        items: ProjectContext.activeProjectId == null 
+          ? const [
+              // STATE 1: ENGINEER NOT INSIDE ANY PROJECT - Show only 3 icons
+              BottomNavigationBarItem(icon: Icon(Icons.home), label: "Dashboard"),
+              BottomNavigationBarItem(icon: Icon(Icons.people_rounded), label: "Social"),
+              BottomNavigationBarItem(icon: Icon(Icons.person), label: "Profile"),
+            ]
+          : const [
+              // STATE 2: ENGINEER INSIDE A PROJECT - Show full footer
+              BottomNavigationBarItem(icon: Icon(Icons.home), label: "Dashboard"),
+              BottomNavigationBarItem(icon: Icon(Icons.folder_open), label: "Projects"),
+              BottomNavigationBarItem(icon: Icon(Icons.verified), label: "Approvals"),
+              BottomNavigationBarItem(icon: Icon(Icons.person), label: "Profile"),
+            ],
       ),
     );
   }
@@ -214,130 +256,281 @@ class _EngineerDashboardState extends State<EngineerDashboard> {
 class EngineerHomeScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(16, kToolbarHeight + 16, 16, 24),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          // Quick Stat Glass Cards
-          SizedBox(
-            height: 96,
-            child: ListView(
-              scrollDirection: Axis.horizontal,
-              children: const [
-                _GlassStatCard(
-                  title: 'Pending Approvals',
-                  icon: Icons.rule_folder_outlined,
-                  value: 6,
+    // CORE RULE: Dashboards must show ONLY project cards. Features must be visible ONLY after a project is selected.
+    if (ProjectContext.activeProjectId == null) {
+      // Show project list only - NO FEATURES
+      return EngineerProjectsScreen();
+    } else {
+      // Show feature grid - FEATURES UNLOCKED
+      return SingleChildScrollView(
+        padding: const EdgeInsets.fromLTRB(16, kToolbarHeight + 16, 16, 24),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            // Engineer ID Card
+            Container(
+              padding: const EdgeInsets.all(12),
+              margin: const EdgeInsets.only(bottom: 16),
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.55),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: Colors.white.withValues(alpha: 0.45)),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.06),
+                    blurRadius: 14,
+                    offset: const Offset(0, 6),
+                  ),
+                ],
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    height: 32,
+                    width: 32,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      gradient: const LinearGradient(
+                        colors: [EngineerDashboard.primary, EngineerDashboard.accent],
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: EngineerDashboard.primary.withValues(alpha: 0.25),
+                          blurRadius: 10,
+                        ),
+                      ],
+                    ),
+                    child: const Icon(Icons.badge, color: Colors.white, size: 16),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: FutureBuilder<DocumentSnapshot>(
+                      future: FirebaseFirestore.instance
+                          .collection('users')
+                          .doc(FirebaseAuth.instance.currentUser!.uid)
+                          .get(),
+                      builder: (context, snapshot) {
+                        if (snapshot.connectionState == ConnectionState.waiting) {
+                          return const SizedBox(); // do not render empty ID
+                        }
+                        
+                        if (!snapshot.hasData || !snapshot.data!.exists) {
+                          return const SizedBox();
+                        }
+                        
+                        final data = snapshot.data!.data() as Map<String, dynamic>;
+                        final publicId = data['publicId'];
+                        
+                        if (publicId == null || publicId.toString().isEmpty) {
+                          return const SizedBox();
+                        }
+                        
+                        return InlinePublicIdDisplay(
+                          prefix: 'Engineer ID: ',
+                          style: const TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                            color: Color(0xFF1F1F1F),
+                          ),
+                          showIcon: false,
+                          publicId: publicId,
+                          role: 'Engineer',
+                        );
+                      },
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            
+            // Project Context Header
+            Container(
+              padding: const EdgeInsets.all(16),
+              margin: const EdgeInsets.only(bottom: 16),
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.55),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: Colors.white.withValues(alpha: 0.45)),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.folder_open, color: EngineerDashboard.primary),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Active Project',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Color(0xFF6B7280),
+                          ),
+                        ),
+                        Text(
+                          ProjectContext.activeProjectName ?? 'Unknown Project',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                            color: Color(0xFF1F1F1F),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  IconButton(
+                    onPressed: () {
+                      ProjectContext.clearActiveProject();
+                      Navigator.of(context).pushReplacement(
+                        MaterialPageRoute(builder: (_) => EngineerDashboard()),
+                      );
+                    },
+                    icon: Icon(Icons.close, color: Color(0xFF6B7280)),
+                  ),
+                ],
+              ),
+            ),
+
+            // Quick Stat Glass Cards - Real-time data (project-scoped)
+            SizedBox(
+              height: 96,
+              child: ListView(
+                scrollDirection: Axis.horizontal,
+                children: [
+                  StreamBuilder<int>(
+                    stream: RealTimeProjectService.getProjectPendingApprovalsCount(ProjectContext.activeProjectId!),
+                    builder: (context, snapshot) {
+                      return _GlassStatCard(
+                        title: 'Pending Approvals',
+                        icon: Icons.rule_folder_outlined,
+                        value: snapshot.data ?? 0,
+                      );
+                    },
+                  ),
+                  const SizedBox(width: 12),
+                  StreamBuilder<int>(
+                    stream: RealTimeProjectService.getProjectPhotosToReviewCount(ProjectContext.activeProjectId!),
+                    builder: (context, snapshot) {
+                      return _GlassStatCard(
+                        title: 'Photos to Review',
+                        icon: Icons.photo_library_outlined,
+                        value: snapshot.data ?? 0,
+                      );
+                    },
+                  ),
+                  const SizedBox(width: 12),
+                  StreamBuilder<int>(
+                    stream: RealTimeProjectService.getProjectDelayedMilestonesCount(ProjectContext.activeProjectId!),
+                    builder: (context, snapshot) {
+                      return _GlassStatCard(
+                        title: 'Delayed Milestones',
+                        icon: Icons.flag_outlined,
+                        value: snapshot.data ?? 0,
+                      );
+                    },
+                  ),
+                  const SizedBox(width: 12),
+                  StreamBuilder<int>(
+                    stream: RealTimeProjectService.getProjectMaterialRequestsCount(ProjectContext.activeProjectId!),
+                    builder: (context, snapshot) {
+                      return _GlassStatCard(
+                        title: 'Material Requests',
+                        icon: Icons.inventory_2_outlined,
+                        value: snapshot.data ?? 0,
+                      );
+                    },
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 16),
+
+            // Main Action Grid (2x2) - Real-time notifications (project-scoped)
+            GridView.count(
+              crossAxisCount: 2,
+              shrinkWrap: true,
+              mainAxisSpacing: 12,
+              crossAxisSpacing: 12,
+              physics: const NeverScrollableScrollPhysics(),
+              childAspectRatio: 1.05,
+              children: [
+                StreamBuilder<int>(
+                  stream: DPRService.getProjectPendingDPRsCount(ProjectContext.activeProjectId!),
+                  builder: (context, snapshot) {
+                    return _ActionCard(
+                      title: 'Review DPRs',
+                      icon: Icons.assignment_turned_in_outlined,
+                      notifications: snapshot.data ?? 0,
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (_) => const DPRReviewScreen()),
+                        );
+                      },
+                    );
+                  },
                 ),
-                SizedBox(width: 12),
-                _GlassStatCard(
-                  title: 'Photos to Review',
-                  icon: Icons.photo_library_outlined,
-                  value: 42,
+                StreamBuilder<int>(
+                  stream: MaterialRequestService.getProjectPendingMaterialRequestsCount(ProjectContext.activeProjectId!),
+                  builder: (context, snapshot) {
+                    return _ActionCard(
+                      title: 'Material Approvals',
+                      icon: Icons.inventory_outlined,
+                      notifications: snapshot.data ?? 0,
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => const MaterialApprovalScreen(),
+                          ),
+                        );
+                      },
+                    );
+                  },
                 ),
-                SizedBox(width: 12),
-                _GlassStatCard(
-                  title: 'Delayed Milestones',
-                  icon: Icons.flag_outlined,
-                  value: 3,
+                _ActionCard(
+                  title: 'Project Details',
+                  icon: Icons.apartment_rounded,
+                  notifications: 0,
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => ProjectDetailsScreen(projectId: ProjectContext.activeProjectId!),
+                      ),
+                    );
+                  },
                 ),
-                SizedBox(width: 12),
-                _GlassStatCard(
-                  title: 'Material Requests',
-                  icon: Icons.inventory_2_outlined,
-                  value: 5,
+                _ActionCard(
+                  title: 'Plot Reviews',
+                  icon: Icons.rule,
+                  notifications: 0,
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => const PlotReviewScreen()),
+                    );
+                  },
+                ),
+                _ActionCard(
+                  title: 'Milestones',
+                  icon: Icons.timeline_outlined,
+                  notifications: 0,
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => const MilestoneHubScreen(),
+                      ),
+                    );
+                  },
                 ),
               ],
             ),
-          ),
-          const SizedBox(height: 16),
-
-          // Main Action Grid (2x2)
-          GridView.count(
-            crossAxisCount: 2,
-            shrinkWrap: true,
-            mainAxisSpacing: 12,
-            crossAxisSpacing: 12,
-            physics: const NeverScrollableScrollPhysics(),
-            childAspectRatio: 1.05,
-            children: [
-              _ActionCard(
-                title: 'Review DPRs',
-                icon: Icons.assignment_turned_in_outlined,
-                notifications: 3,
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (_) => const DPRReviewScreen()),
-                  );
-                },
-              ),
-              _ActionCard(
-                title: 'Material Approvals',
-                icon: Icons.inventory_outlined,
-                notifications: 1,
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => const MaterialApprovalScreen(),
-                    ),
-                  );
-                },
-              ),
-              _ActionCard(
-                title: 'Project Details',
-                icon: Icons.apartment_rounded,
-                notifications: 0,
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => const ProjectDetailsScreen(),
-                    ),
-                  );
-                },
-              ),
-              _ActionCard(
-                title: 'Plot Reviews',
-                icon: Icons.rule,
-                notifications: 0,
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (_) => const PlotReviewScreen()),
-                  );
-                },
-              ),
-              _ActionCard(
-                title: 'Milestones',
-                icon: Icons.timeline_outlined,
-                notifications: 0,
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => const MilestoneHubScreen(),
-                    ),
-                  );
-                },
-              ),
-            ],
-          ),
-          const SizedBox(height: 18),
-
-          // Optional Activity Feed
-          const _FeedCard(title: '3 approvals verified • Skyline Tower A'),
-          const SizedBox(height: 10),
-          const _FeedCard(title: '5 photos reviewed • Metro Line Ext.'),
-          const SizedBox(height: 10),
-          const _FeedCard(
-            title: '2 material requests approved • Green Park Housing',
-          ),
-        ],
-      ),
-    );
+          ],
+        ),
+      );
+    }
   }
 }
 
@@ -616,6 +809,247 @@ class _GlowBlob extends StatelessWidget {
           stops: const [0.0, 1.0],
         ),
       ),
+    );
+  }
+}
+
+/// Engineer Projects Screen - shows projects created by the engineer
+class EngineerProjectsScreen extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, kToolbarHeight + 16, 16, 24),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'My Projects',
+            style: TextStyle(
+              fontSize: 24,
+              fontWeight: FontWeight.w800,
+              color: Color(0xFF1F1F1F),
+            ),
+          ),
+          const SizedBox(height: 8),
+          const Text(
+            'Projects you have created and their approval status',
+            style: TextStyle(
+              fontSize: 14,
+              color: Color(0xFF6B7280),
+            ),
+          ),
+          const SizedBox(height: 20),
+
+          Expanded(
+            child: StreamBuilder<List<ProjectModel>>(
+              stream: RealTimeProjectService.getEngineerProjects(),
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Center(
+                    child: CircularProgressIndicator(
+                      valueColor: AlwaysStoppedAnimation<Color>(
+                        EngineerDashboard.primary,
+                      ),
+                    ),
+                  );
+                }
+
+                if (snapshot.hasError) {
+                  return Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Icon(
+                          Icons.error_outline,
+                          size: 64,
+                          color: Color(0xFFEF4444),
+                        ),
+                        const SizedBox(height: 16),
+                        Text(
+                          'Error loading projects',
+                          style: const TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.w600,
+                            color: Color(0xFF1F2937),
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          snapshot.error.toString(),
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(
+                            color: Color(0xFF6B7280),
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                }
+
+                final projects = snapshot.data ?? [];
+
+                if (projects.isEmpty) {
+                  return Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Icon(
+                          Icons.folder_open,
+                          size: 64,
+                          color: Color(0xFF9CA3AF),
+                        ),
+                        const SizedBox(height: 16),
+                        const Text(
+                          'No Projects Yet',
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.w600,
+                            color: Color(0xFF1F2937),
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        const Text(
+                          'Projects you create will appear here',
+                          style: TextStyle(
+                            color: Color(0xFF6B7280),
+                          ),
+                        ),
+                        const SizedBox(height: 24),
+                        ElevatedButton.icon(
+                          onPressed: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => const CreateProjectScreen(),
+                              ),
+                            );
+                          },
+                          icon: const Icon(Icons.add),
+                          label: const Text('Create Project'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: EngineerDashboard.primary,
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 24,
+                              vertical: 12,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                }
+
+                return Column(
+                  children: [
+                    // Create Project button at top when projects exist
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 16),
+                      child: ElevatedButton.icon(
+                        onPressed: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => const CreateProjectScreen(),
+                            ),
+                          );
+                        },
+                        icon: const Icon(Icons.add),
+                        label: const Text('Create Project'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: EngineerDashboard.primary,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 24,
+                            vertical: 12,
+                          ),
+                        ),
+                      ),
+                    ),
+                    Expanded(
+                      child: ListView.builder(
+                        itemCount: projects.length,
+                        itemBuilder: (context, index) {
+                          final project = projects[index];
+                          return EngineerProjectCard(
+                            project: project,
+                            onTap: () {
+                              // Set active project and navigate to dashboard
+                              ProjectContext.setActiveProject(project.id, project.projectName);
+                              Navigator.of(context).pushReplacement(
+                                MaterialPageRoute(builder: (_) => EngineerDashboard()),
+                              );
+                            },
+                          );
+                        },
+                      ),
+                    ),
+                  ],
+                );
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class EngineerSocialScreen extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      children: [
+        // Background gradient
+        Container(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                EngineerDashboard.primary.withValues(alpha: 0.12),
+                EngineerDashboard.accent.withValues(alpha: 0.10),
+                Colors.white,
+              ],
+              stops: const [0.0, 0.45, 1.0],
+            ),
+          ),
+        ),
+
+        SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, kToolbarHeight + 16, 16, 24),
+            child: Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Icon(
+                    Icons.people_rounded,
+                    size: 64,
+                    color: Color(0xFF9CA3AF),
+                  ),
+                  const SizedBox(height: 16),
+                  const Text(
+                    'Social Features',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w600,
+                      color: Color(0xFF1F2937),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  const Text(
+                    'Coming soon',
+                    style: TextStyle(
+                      color: Color(0xFF6B7280),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ],
     );
   }
 }

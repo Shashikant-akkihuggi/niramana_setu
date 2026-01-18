@@ -1,35 +1,16 @@
 import 'package:flutter/material.dart';
 import 'dart:ui' as ui;
+import '../services/dpr_service.dart';
+import '../services/notification_service.dart';
+import '../models/dpr_model.dart';
+import '../common/project_context.dart';
+import 'engineer_dashboard.dart';
 
 // All DPR review logic scoped to this file as requested.
 
 class _ThemeEN {
   static const Color primary = Color(0xFF136DEC);
   static const Color accent = Color(0xFF7A5AF8);
-}
-
-class DPRModel {
-  final String id;
-  final String title; // project/report title
-  final String date;
-  final String work;
-  final String materials;
-  final String workers;
-  final List<String> photos; // image urls/paths (mock)
-  String status; // pending / approved / rejected
-  String comment;
-
-  DPRModel({
-    required this.id,
-    required this.title,
-    required this.date,
-    required this.work,
-    required this.materials,
-    required this.workers,
-    required this.photos,
-    this.status = 'pending',
-    this.comment = '',
-  });
 }
 
 class DPRReviewScreen extends StatefulWidget {
@@ -40,61 +21,125 @@ class DPRReviewScreen extends StatefulWidget {
 }
 
 class _DPRReviewScreenState extends State<DPRReviewScreen> {
-  final List<DPRModel> _dprs = [
-    DPRModel(
-      id: 'RPT-001',
-      title: 'Skyline Tower A — 24 Dec',
-      date: '24 Dec 2025',
-      work: 'Formwork completed for level 12 slab. Rebar fixing started for core walls. Electrical conduit sleeves placed.',
-      materials: 'Cement: 120 bags, TMT: 1.6T, Sand: 18m³',
-      workers: '42 (20 masons, 15 helpers, 7 bar benders)',
-      photos: ['p1', 'p2', 'p3'],
-    ),
-    DPRModel(
-      id: 'RPT-002',
-      title: 'Metro Line Ext. — 24 Dec',
-      date: '24 Dec 2025',
-      work: 'Pier cap shuttering ongoing at P-17. DPR site survey completed for package B.',
-      materials: 'TMT: 2.2T, Admixture: 10L',
-      workers: '36 (12 carpenters, 16 helpers, 8 steel fixers)',
-      photos: ['p4', 'p5'],
-    ),
-    DPRModel(
-      id: 'RPT-003',
-      title: 'Green Park Housing — 23 Dec',
-      date: '23 Dec 2025',
-      work: 'Blockwork internal walls at Tower C 3rd floor. Plumbing sleeves installed.',
-      materials: 'Blocks: 1800 nos, Cement: 85 bags',
-      workers: '28 (block layers, helpers)',
-      photos: ['p6', 'p7', 'p8', 'p9'],
-      status: 'approved',
-      comment: 'Looks good.',
-    ),
-  ];
-
   void _openDetail(DPRModel dpr) async {
     await Navigator.push(
       context,
       MaterialPageRoute(
         builder: (_) => DPRDetailScreen(
           dpr: dpr,
-          onStatusChanged: (status, comment) {
-            setState(() {
-              dpr.status = status;
-              dpr.comment = comment;
-            });
+          onStatusChanged: (status, comment) async {
+            try {
+              await DPRService.updateDPRStatus(dpr.id, status, comment);
+              
+              // Send notification to Manager
+              await NotificationService.notifyDPRApproval(
+                toUserId: dpr.submittedBy,
+                dprTitle: dpr.title,
+                projectId: dpr.projectId,
+                approved: status == 'approved',
+              );
+              
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    behavior: SnackBarBehavior.floating,
+                    content: Row(
+                      children: [
+                        Icon(
+                          status == 'approved' ? Icons.check_circle : Icons.cancel,
+                          color: Colors.white,
+                        ),
+                        const SizedBox(width: 8),
+                        Text('DPR ${status == 'approved' ? 'approved' : 'rejected'}'),
+                      ],
+                    ),
+                    backgroundColor: status == 'approved' 
+                        ? const Color(0xFF15803D) 
+                        : const Color(0xFFB91C1C),
+                  ),
+                );
+              }
+            } catch (e) {
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('Error updating DPR: $e'),
+                    backgroundColor: Colors.red,
+                  ),
+                );
+              }
+            }
           },
         ),
       ),
     );
-    setState(() {});
   }
 
   @override
   Widget build(BuildContext context) {
+    // FEATURE PAGE SAFETY RULE: Every feature screen must require ProjectContext.activeProjectId
+    if (ProjectContext.activeProjectId == null) {
+      return Scaffold(
+        appBar: AppBar(
+          title: const Text('Review DPRs'),
+          backgroundColor: Colors.transparent,
+          elevation: 0,
+        ),
+        extendBodyBehindAppBar: true,
+        body: Stack(
+          children: [
+            _BackgroundEN(),
+            SafeArea(
+              child: Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Icon(
+                      Icons.folder_open,
+                      size: 64,
+                      color: Color(0xFF9CA3AF),
+                    ),
+                    const SizedBox(height: 16),
+                    const Text(
+                      'No Project Selected',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w600,
+                        color: Color(0xFF1F2937),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    const Text(
+                      'Please select a project to review DPRs',
+                      style: TextStyle(
+                        color: Color(0xFF6B7280),
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+                    ElevatedButton(
+                      onPressed: () {
+                        Navigator.of(context).pushReplacement(
+                          MaterialPageRoute(builder: (_) => EngineerDashboard()),
+                        );
+                      },
+                      child: const Text('Back to Projects'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: _ThemeEN.primary,
+                        foregroundColor: Colors.white,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Review DPRs'),
+        title: Text('Review DPRs - ${ProjectContext.activeProjectName}'),
         backgroundColor: Colors.transparent,
         elevation: 0,
       ),
@@ -103,15 +148,93 @@ class _DPRReviewScreenState extends State<DPRReviewScreen> {
         children: [
           _BackgroundEN(),
           SafeArea(
-            child: ListView.separated(
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
-              itemCount: _dprs.length,
-              separatorBuilder: (_, __) => const SizedBox(height: 12),
-              itemBuilder: (context, i) {
-                final d = _dprs[i];
-                return _DPRCard(
-                  dpr: d,
-                  onTap: () => _openDetail(d),
+            child: StreamBuilder<List<DPRModel>>(
+              stream: DPRService.getProjectDPRs(ProjectContext.activeProjectId!),
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Center(
+                    child: CircularProgressIndicator(
+                      valueColor: AlwaysStoppedAnimation<Color>(_ThemeEN.primary),
+                    ),
+                  );
+                }
+
+                if (snapshot.hasError) {
+                  return Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Icon(
+                          Icons.error_outline,
+                          size: 64,
+                          color: Color(0xFFEF4444),
+                        ),
+                        const SizedBox(height: 16),
+                        const Text(
+                          'Error loading DPRs',
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.w600,
+                            color: Color(0xFF1F2937),
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          snapshot.error.toString(),
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(
+                            color: Color(0xFF6B7280),
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                }
+
+                final dprs = snapshot.data ?? [];
+
+                if (dprs.isEmpty) {
+                  return Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Icon(
+                          Icons.assignment_outlined,
+                          size: 64,
+                          color: Color(0xFF9CA3AF),
+                        ),
+                        const SizedBox(height: 16),
+                        const Text(
+                          'No DPRs to Review',
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.w600,
+                            color: Color(0xFF1F2937),
+                          ),
+                        ),
+                        SizedBox(height: 8),
+                        Text(
+                          'DPRs submitted by managers will appear here',
+                          style: TextStyle(
+                            color: Color(0xFF6B7280),
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                }
+
+                return ListView.separated(
+                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+                  itemCount: dprs.length,
+                  separatorBuilder: (_, __) => const SizedBox(height: 12),
+                  itemBuilder: (context, i) {
+                    final dpr = dprs[i];
+                    return _DPRCard(
+                      dpr: dpr,
+                      onTap: () => _openDetail(dpr),
+                    );
+                  },
                 );
               },
             ),
@@ -218,7 +341,7 @@ class DPRDetailScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final commentController = TextEditingController(text: dpr.comment);
+    final commentController = TextEditingController(text: dpr.comment ?? '');
     return Scaffold(
       appBar: AppBar(
         title: Text(dpr.title),
@@ -261,47 +384,22 @@ class DPRDetailScreen extends StatelessWidget {
               ),
             ),
           ),
-          Positioned(
-            left: 16,
-            right: 16,
-            bottom: 16,
-            child: _ApproveRejectBar(
-              onApprove: () {
-                onStatusChanged('approved', commentController.text.trim());
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    behavior: SnackBarBehavior.floating,
-                    content: Row(
-                      children: const [
-                        Icon(Icons.check_circle, color: Colors.white),
-                        SizedBox(width: 8),
-                        Text('DPR approved'),
-                      ],
-                    ),
-                    backgroundColor: const Color(0xFF15803D),
-                  ),
-                );
-                Navigator.of(context).pop();
-              },
-              onReject: () {
-                onStatusChanged('rejected', commentController.text.trim());
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    behavior: SnackBarBehavior.floating,
-                    content: Row(
-                      children: const [
-                        Icon(Icons.cancel, color: Colors.white),
-                        SizedBox(width: 8),
-                        Text('DPR rejected'),
-                      ],
-                    ),
-                    backgroundColor: const Color(0xFFB91C1C),
-                  ),
-                );
-                Navigator.of(context).pop();
-              },
+          if (dpr.status == 'pending')
+            Positioned(
+              left: 16,
+              right: 16,
+              bottom: 16,
+              child: _ApproveRejectBar(
+                onApprove: () {
+                  onStatusChanged('approved', commentController.text.trim());
+                  Navigator.of(context).pop();
+                },
+                onReject: () {
+                  onStatusChanged('rejected', commentController.text.trim());
+                  Navigator.of(context).pop();
+                },
+              ),
             ),
-          ),
         ],
       ),
     );

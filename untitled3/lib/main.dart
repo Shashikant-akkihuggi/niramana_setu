@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'dart:ui' as ui;
+import 'dart:math';
 import 'engineer/engineer_dashboard.dart';
 import 'owner/owner.dart';
 import 'manager/manager.dart';
@@ -11,9 +13,25 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'services/auth_service.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'common/localization/app_language_controller.dart';
+import 'common/localization/language_controller.dart';
 import 'common/screens/language_selection_screen.dart';
+import 'package:untitled3/common/widgets/animated_get_started_button.dart';
+import 'common/project_context.dart';
+
 
 enum Role { fieldManager, projectEngineer, ownerClient }
+
+/// Generate public ID in format: (first 4 letters of name, lowercase) + (4 random digits)
+/// Example: "Shashikanth" -> "shas4821"
+String generatePublicId(String name) {
+  final cleanName = name.trim().toLowerCase();
+  final prefix = cleanName.length >= 4
+      ? cleanName.substring(0, 4)
+      : cleanName.padRight(4, 'x');
+  
+  final random = Random().nextInt(9000) + 1000; // 4 digits (1000-9999)
+  return '$prefix$random';
+}
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -39,6 +57,10 @@ void main() async {
   // Initialize Language Controller
   // This loads the saved language preference from Hive
   await AppLanguageController().initialize();
+  await LanguageController().initialize();
+
+  // CRITICAL: Clear project context on app startup
+  ProjectContext.clearActiveProject();
 
   print("Firebase connected & Hive initialized!");
   runApp(const MyApp());
@@ -52,11 +74,19 @@ class MyApp extends StatelessWidget {
     // Wrap with AnimatedBuilder to listen to language changes
     // This allows hot language switching without app restart
     return AnimatedBuilder(
-      animation: AppLanguageController(),
+      animation: LanguageController(),
       builder: (context, child) {
+        final languageController = LanguageController();
         return MaterialApp(
           title: 'Niramana Setu',
           debugShowCheckedModeBanner: false,
+          locale: languageController.currentLocale,
+          supportedLocales: languageController.supportedLocales,
+          localizationsDelegates: const [
+            GlobalMaterialLocalizations.delegate,
+            GlobalWidgetsLocalizations.delegate,
+            GlobalCupertinoLocalizations.delegate,
+          ],
           theme: ThemeData(
             scaffoldBackgroundColor: Colors.white,
             useMaterial3: true,
@@ -87,7 +117,7 @@ class AuthWrapper extends StatefulWidget {
 class _AuthWrapperState extends State<AuthWrapper> {
   bool _isLoading = true;
   Widget _homeWidget = const WelcomeScreen();
-  final AppLanguageController _langController = AppLanguageController();
+  final LanguageController _langController = LanguageController();
 
   @override
   void initState() {
@@ -189,6 +219,8 @@ class WelcomeScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final langController = LanguageController();
+    
     return Scaffold(
       body: SafeArea(
         child: LayoutBuilder(
@@ -245,7 +277,7 @@ class WelcomeScreen extends StatelessWidget {
                   const SizedBox(height: 24),
                   // Title
                   Text(
-                    'Niramana Setu',
+                    langController.t('app_name'),
                     textAlign: TextAlign.center,
                     style: theme.textTheme.headlineSmall?.copyWith(
                       fontWeight: FontWeight.w700,
@@ -255,7 +287,7 @@ class WelcomeScreen extends StatelessWidget {
                   const SizedBox(height: 8),
                   // Subtitle
                   Text(
-                    'Manage projects with ease',
+                    langController.t('manage_projects_ease'),
                     textAlign: TextAlign.center,
                     style: theme.textTheme.bodyLarge?.copyWith(
                       color: const Color(0xFF6F6F6F),
@@ -305,7 +337,7 @@ class WelcomeScreen extends StatelessWidget {
                               letterSpacing: 0.3,
                             ),
                           ),
-                          child: const Text('Get Started'),
+                          child: Text(langController.t('get_started')),
                         ),
                         const SizedBox(height: 8),
                         // Note: Engineer Dashboard opens only after Project Engineer login
@@ -481,6 +513,8 @@ class RoleSelectionScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final langController = LanguageController();
+    
     return Scaffold(
       body: Stack(
         children: [
@@ -532,7 +566,7 @@ class RoleSelectionScreen extends StatelessWidget {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              'Choose Your Role',
+                              langController.t('choose_your_role'),
                               style: theme.textTheme.headlineSmall?.copyWith(
                                 fontWeight: FontWeight.w800,
                                 letterSpacing: 0.2,
@@ -541,7 +575,7 @@ class RoleSelectionScreen extends StatelessWidget {
                             ),
                             const SizedBox(height: 6),
                             Text(
-                              'Select how you use Niramana Setu',
+                              langController.t('select_how_you_use'),
                               style: theme.textTheme.bodyLarge?.copyWith(
                                 color: const Color(0xFF5C5C5C),
                                 letterSpacing: 0.1,
@@ -555,9 +589,8 @@ class RoleSelectionScreen extends StatelessWidget {
                       _BigGlassRoleButton(
                         height: cardHeight,
                         icon: Icons.home_repair_service,
-                        title: 'Field Manager',
-                        subtitle:
-                            'Manage on-site tasks and oversee daily operations',
+                        title: langController.t('field_manager'),
+                        subtitle: langController.t('field_manager_desc'),
                         glowColor: primary,
                         onTap: () async {
                           final user = FirebaseAuth.instance.currentUser;
@@ -594,9 +627,8 @@ class RoleSelectionScreen extends StatelessWidget {
                       _BigGlassRoleButton(
                         height: cardHeight,
                         icon: Icons.architecture,
-                        title: 'Project Engineer',
-                        subtitle:
-                            'Design project plans and ensure technical accuracy',
+                        title: langController.t('project_engineer'),
+                        subtitle: langController.t('project_engineer_desc'),
                         glowColor: accent,
                         onTap: () async {
                           final user = FirebaseAuth.instance.currentUser;
@@ -633,8 +665,8 @@ class RoleSelectionScreen extends StatelessWidget {
                       _BigGlassRoleButton(
                         height: cardHeight,
                         icon: Icons.apartment,
-                        title: 'Owner / Client',
-                        subtitle: 'Track project progress and manage contracts',
+                        title: langController.t('owner_client'),
+                        subtitle: langController.t('owner_client_desc'),
                         glowColor: primary,
                         onTap: () async {
                           final user = FirebaseAuth.instance.currentUser;
@@ -2334,7 +2366,10 @@ class _SignupScreenState extends State<SignupScreen> {
       final user = userCredential.user;
 
       if (user != null) {
-        // Store user data in Firestore with role
+        // Generate public ID
+        final publicId = generatePublicId(_nameController.text.trim());
+        
+        // Store user data in Firestore with role and public ID
         await FirebaseFirestore.instance.collection('users').doc(user.uid).set({
           'fullName': _nameController.text.trim(),
           'email': _emailController.text.trim(),
@@ -2343,6 +2378,7 @@ class _SignupScreenState extends State<SignupScreen> {
               : widget.selectedRole == Role.projectEngineer
                   ? 'projectEngineer'
                   : 'ownerClient',
+          'publicId': publicId,
           'createdAt': FieldValue.serverTimestamp(),
         });
 

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'dart:ui' as ui;
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 class _ThemeINV {
   static const Color primary = Color(0xFF136DEC);
@@ -24,74 +25,94 @@ class InvoiceModel {
     required this.gst,
     this.notes = '',
   });
+
+  static InvoiceModel fromFirestore(DocumentSnapshot doc) {
+    final data = doc.data() as Map<String, dynamic>;
+    return InvoiceModel(
+      id: doc.id,
+      title: data['title'] ?? '',
+      amount: (data['amount'] is num) ? (data['amount'] as num).toDouble() : 0.0,
+      status: data['status'] ?? 'pending',
+      date: (data['date'] as Timestamp?)?.toDate() ?? DateTime.now(),
+      gst: (data['gst'] is num) ? (data['gst'] as num).toDouble() : 0.0,
+      notes: data['notes'] ?? '',
+    );
+  }
 }
 
-final List<InvoiceModel> _mockInvoices = [
-  InvoiceModel(
-    id: 'INV-2025-001',
-    title: 'Skyline Tower A — RA Bill 05',
-    amount: 1250000.00,
-    status: 'paid',
-    date: DateTime(2025, 12, 20),
-    gst: 18,
-    notes: 'Cleared via bank transfer. UTR: 30591ABCDE',
-  ),
-  InvoiceModel(
-    id: 'INV-2025-002',
-    title: 'Metro Line Ext. — RA Bill 08',
-    amount: 2380000.00,
-    status: 'pending',
-    date: DateTime(2025, 12, 22),
-    gst: 18,
-    notes: 'Awaiting client approval.',
-  ),
-  InvoiceModel(
-    id: 'INV-2025-003',
-    title: 'Green Park Housing — RA Bill 03',
-    amount: 780000.00,
-    status: 'paid',
-    date: DateTime(2025, 12, 18),
-    gst: 12,
-    notes: 'Paid via cheque. Ref: CHQ-018272',
-  ),
-];
-
 class OwnerInvoicesScreen extends StatelessWidget {
-  const OwnerInvoicesScreen({super.key});
+  final String projectId;
+  const OwnerInvoicesScreen({super.key, required this.projectId});
+
+  Stream<List<InvoiceModel>> _invoicesStream() {
+    return FirebaseFirestore.instance
+        .collection('projects')
+        .doc(projectId)
+        .collection('invoices')
+        .orderBy('date', descending: true)
+        .snapshots()
+        .map((s) => s.docs.map(InvoiceModel.fromFirestore).toList());
+  }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Invoices'),
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-      ),
-      extendBodyBehindAppBar: true,
-      body: Stack(
-        children: [
-          _Background(),
-          SafeArea(
-            child: ListView.separated(
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
-              itemCount: _mockInvoices.length,
-              separatorBuilder: (_, __) => const SizedBox(height: 12),
-              itemBuilder: (context, i) {
-                final inv = _mockInvoices[i];
-                return _InvoiceCard(
-                  invoice: inv,
-                  onTap: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(builder: (_) => _InvoiceDetailScreen(invoice: inv)),
+    return Stack(
+      children: [
+        _Background(),
+        SafeArea(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 12, 20, 8),
+                child: Text(
+                  'Invoices',
+                  style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                    fontWeight: FontWeight.w600,
+                    color: const Color(0xFF1F1F1F),
+                  ),
+                ),
+              ),
+              Expanded(
+                child: StreamBuilder<List<InvoiceModel>>(
+                  stream: _invoicesStream(),
+                  builder: (context, snapshot) {
+                    final items = snapshot.data ?? const <InvoiceModel>[];
+                    if (snapshot.connectionState == ConnectionState.waiting) {
+                      return const Center(child: CircularProgressIndicator());
+                    }
+                    if (items.isEmpty) {
+                      return ListView.separated(
+                        padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+                        itemCount: 0,
+                        separatorBuilder: (_, __) => const SizedBox(height: 12),
+                        itemBuilder: (_, __) => const SizedBox.shrink(),
+                      );
+                    }
+                    return ListView.separated(
+                      padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+                      itemCount: items.length,
+                      separatorBuilder: (_, __) => const SizedBox(height: 12),
+                      itemBuilder: (context, i) {
+                        final inv = items[i];
+                        return _InvoiceCard(
+                          invoice: inv,
+                          onTap: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(builder: (_) => _InvoiceDetailScreen(invoice: inv)),
+                            );
+                          },
+                        );
+                      },
                     );
                   },
-                );
-              },
-            ),
+                ),
+              ),
+            ],
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 }
@@ -123,7 +144,7 @@ class _InvoiceCard extends StatelessWidget {
                 BoxShadow(color: _ThemeINV.primary.withValues(alpha: 0.12), blurRadius: 24, spreadRadius: 1),
               ],
             ),
-            padding: const EdgeInsets.all(14),
+            padding: const EdgeInsets.all(16), // Increased padding for better spacing
             child: Row(
               children: [
                 Container(
@@ -136,45 +157,88 @@ class _InvoiceCard extends StatelessWidget {
                       BoxShadow(color: _ThemeINV.primary.withValues(alpha: 0.25), blurRadius: 14),
                     ],
                   ),
-                  child: const Icon(Icons.receipt_long_rounded, color: Colors.white),
+                  child: const Icon(Icons.receipt_long_rounded, color: Colors.white, size: 20),
                 ),
-                const SizedBox(width: 12),
+                const SizedBox(width: 16), // Increased spacing
+                // FIX: Better text layout with proper constraints
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(invoice.title, style: const TextStyle(fontWeight: FontWeight.w800, color: Color(0xFF1F2937))),
+                      Text(
+                        invoice.title,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w600, // Consistent font weight
+                          color: Color(0xFF1F2937),
+                          fontSize: 16,
+                        ),
+                      ),
                       const SizedBox(height: 4),
-                      Text('${invoice.id}  •  $d', style: const TextStyle(color: Color(0xFF4B5563))),
+                      Text(
+                        '${invoice.id}  •  $d',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: Color(0xFF4B5563),
+                          fontSize: 13,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
                     ],
                   ),
                 ),
+                const SizedBox(width: 12),
+                // FIX: Better layout for amount and status badges
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
-                    Text('₹${invoice.amount.toStringAsFixed(2)}', style: const TextStyle(fontWeight: FontWeight.w800, color: Color(0xFF1F2937))),
-                    const SizedBox(height: 4),
-                    Row(
-                      mainAxisSize: MainAxisSize.min,
+                    Text(
+                      '₹${_formatAmount(invoice.amount)}',
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w600,
+                        color: Color(0xFF1F2937),
+                        fontSize: 16,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    // Status badges in a column for better mobile layout
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.end,
                       children: [
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                           decoration: BoxDecoration(
                             color: statusColor.withValues(alpha: 0.12),
-                            borderRadius: BorderRadius.circular(999),
+                            borderRadius: BorderRadius.circular(12),
                             border: Border.all(color: statusColor.withValues(alpha: 0.35)),
                           ),
-                          child: Text(statusLabel, style: TextStyle(color: statusColor, fontWeight: FontWeight.w700, fontSize: 11)),
+                          child: Text(
+                            statusLabel,
+                            style: TextStyle(
+                              color: statusColor,
+                              fontWeight: FontWeight.w600,
+                              fontSize: 11,
+                            ),
+                          ),
                         ),
-                        const SizedBox(width: 6),
+                        const SizedBox(height: 4),
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                           decoration: BoxDecoration(
                             color: const Color(0xFF2563EB).withValues(alpha: 0.12),
-                            borderRadius: BorderRadius.circular(999),
+                            borderRadius: BorderRadius.circular(12),
                             border: Border.all(color: const Color(0xFF2563EB).withValues(alpha: 0.35)),
                           ),
-                          child: Text('GST ${invoice.gst.toStringAsFixed(0)}%', style: const TextStyle(color: Color(0xFF2563EB), fontWeight: FontWeight.w700, fontSize: 11)),
+                          child: Text(
+                            'GST ${invoice.gst.toStringAsFixed(0)}%',
+                            style: const TextStyle(
+                              color: Color(0xFF2563EB),
+                              fontWeight: FontWeight.w600,
+                              fontSize: 11,
+                            ),
+                          ),
                         ),
                       ],
                     ),
@@ -186,6 +250,17 @@ class _InvoiceCard extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  // FIX: Helper method to format large amounts properly
+  String _formatAmount(double amount) {
+    if (amount >= 10000000) {
+      return '${(amount / 10000000).toStringAsFixed(1)}Cr';
+    } else if (amount >= 100000) {
+      return '${(amount / 100000).toStringAsFixed(1)}L';
+    } else {
+      return amount.toStringAsFixed(0);
+    }
   }
 }
 

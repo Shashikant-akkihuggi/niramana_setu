@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'dart:ui' as ui;
 import '../localization/app_language_controller.dart';
+import '../localization/language_controller.dart';
 import '../localization/language_keys.dart';
 
 /// Language Selection Screen
@@ -28,7 +29,7 @@ class LanguageSelectionScreen extends StatefulWidget {
 }
 
 class _LanguageSelectionScreenState extends State<LanguageSelectionScreen> {
-  final AppLanguageController _langController = AppLanguageController();
+  final LanguageController _langController = LanguageController();
   String? _selectedLanguage;
 
   static const Color primary = Color(0xFF136DEC);
@@ -43,7 +44,7 @@ class _LanguageSelectionScreenState extends State<LanguageSelectionScreen> {
   Future<void> _confirmSelection() async {
     if (_selectedLanguage == null) return;
 
-    // Save language selection
+    // Save language selection using the global language controller
     await _langController.changeLanguage(_selectedLanguage!);
 
     // Navigate forward

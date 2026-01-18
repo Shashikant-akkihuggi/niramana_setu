@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../services/offline_sync_service.dart';
+import '../services/material_request_service.dart';
 import 'dart:ui' as ui;
 
 class _ThemeMR {
@@ -8,38 +9,19 @@ class _ThemeMR {
   static const Color accent = Color(0xFF7A5AF8);
 }
 
-class MaterialRequestModel {
-  final String id;
-  final String material;
-  final String quantity;
-  final String priority; // Low / Medium / High
-  final DateTime dateNeeded;
-  final String note;
-  String status; // pending / approved / rejected
-  String comment; // engineer note
-
-  MaterialRequestModel({
-    required this.id,
-    required this.material,
-    required this.quantity,
-    required this.priority,
-    required this.dateNeeded,
-    this.note = '',
-    this.status = 'pending',
-    this.comment = '',
-  });
-}
-
 // Shared in-memory list (mock until Firebase)
 final List<MaterialRequestModel> materialRequests = [
   MaterialRequestModel(
     id: 'MR-0001',
+    projectId: 'project-1',
     material: 'Cement',
     quantity: '120 bags',
     priority: 'High',
     dateNeeded: DateTime.now().add(const Duration(days: 3)),
     note: 'For level 12 slab',
     status: 'pending',
+    requesterId: 'manager-1',
+    createdAt: DateTime.now(),
   ),
 ];
 

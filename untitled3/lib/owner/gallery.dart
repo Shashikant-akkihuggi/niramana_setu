@@ -1,105 +1,120 @@
 import 'package:flutter/material.dart';
 import 'dart:ui' as ui;
-import '../engineer/dpr_review.dart' show DPRModel; // reuse mock DPR model
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 class _GalleryTheme {
   static const Color primary = Color(0xFF136DEC);
   static const Color accent = Color(0xFF7A5AF8);
 }
 
-// Local mock source mirroring engineer's DPRs. In production, replace this with a shared repository.
-final List<DPRModel> _mockDprs = [
-  DPRModel(
-    id: 'RPT-001',
-    title: 'Skyline Tower A — 24 Dec',
-    date: '24 Dec 2025',
-    work: 'Formwork completed for level 12 slab. Rebar fixing started for core walls. Electrical conduit sleeves placed.',
-    materials: 'Cement: 120 bags, TMT: 1.6T, Sand: 18m³',
-    workers: '42 (20 masons, 15 helpers, 7 bar benders)',
-    photos: ['Skyline-1', 'Skyline-2', 'Skyline-3'],
-    status: 'approved',
-    comment: 'Verified. Good workmanship.',
-  ),
-  DPRModel(
-    id: 'RPT-002',
-    title: 'Metro Line Ext. — 24 Dec',
-    date: '24 Dec 2025',
-    work: 'Pier cap shuttering ongoing at P-17. DPR site survey completed for package B.',
-    materials: 'TMT: 2.2T, Admixture: 10L',
-    workers: '36 (12 carpenters, 16 helpers, 8 steel fixers)',
-    photos: ['Metro-1', 'Metro-2'],
-    status: 'pending',
-    comment: '',
-  ),
-  DPRModel(
-    id: 'RPT-003',
-    title: 'Green Park Housing — 23 Dec',
-    date: '23 Dec 2025',
-    work: 'Blockwork internal walls at Tower C 3rd floor. Plumbing sleeves installed.',
-    materials: 'Blocks: 1800 nos, Cement: 85 bags',
-    workers: '28 (block layers, helpers)',
-    photos: ['Green-1', 'Green-2', 'Green-3', 'Green-4'],
-    status: 'approved',
-    comment: 'Looks good.',
-  ),
-];
+class _PhotoDoc {
+  final String id;
+  final String url;
+  final String description;
+  final DateTime approvedAt;
+  final String title;
+  _PhotoDoc({required this.id, required this.url, required this.description, required this.approvedAt, required this.title});
+  static _PhotoDoc fromFirestore(DocumentSnapshot doc) {
+    final d = doc.data() as Map<String, dynamic>;
+    return _PhotoDoc(
+      id: doc.id,
+      url: d['url'] ?? '',
+      description: d['description'] ?? '',
+      approvedAt: (d['approvedAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+      title: d['title'] ?? '',
+    );
+  }
+}
 
 class OwnerGalleryScreen extends StatelessWidget {
-  const OwnerGalleryScreen({super.key});
+  final String projectId;
+  const OwnerGalleryScreen({super.key, required this.projectId});
 
-  List<_GalleryItem> _approvedItems() {
-    final items = <_GalleryItem>[];
-    for (final dpr in _mockDprs.where((d) => d.status == 'approved')) {
-      for (final p in dpr.photos) {
-        items.add(_GalleryItem(
-          photoId: p,
-          date: dpr.date,
-          description: dpr.work,
-          status: dpr.status,
-          engineerNote: dpr.comment,
-          title: dpr.title,
-        ));
-      }
-    }
-    return items;
+  Stream<List<_GalleryItem>> _items() {
+    return FirebaseFirestore.instance
+        .collection('projects')
+        .doc(projectId)
+        .collection('photos')
+        .where('status', isEqualTo: 'approved')
+        .orderBy('approvedAt', descending: true)
+        .snapshots()
+        .map((s) => s.docs.map(_PhotoDoc.fromFirestore).map((p) => _GalleryItem(
+              photoId: p.url,
+              date: _fmtDate(p.approvedAt),
+              description: p.description,
+              status: 'approved',
+              engineerNote: '',
+              title: p.title,
+            )).toList());
+  }
+
+  static String _fmtDate(DateTime d) {
+    final dd = d.day.toString().padLeft(2, '0');
+    final mm = d.month.toString().padLeft(2, '0');
+    final yyyy = d.year;
+    return '$dd-$mm-$yyyy';
   }
 
   @override
   Widget build(BuildContext context) {
-    final items = _approvedItems();
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Progress Gallery'),
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-      ),
-      extendBodyBehindAppBar: true,
-      body: Stack(
-        children: [
-          _Background(),
-          SafeArea(
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
-              child: GridView.builder(
-                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount: 2,
-                  crossAxisSpacing: 12,
-                  mainAxisSpacing: 12,
-                  childAspectRatio: 0.82,
+    return Stack(
+      children: [
+        _Background(),
+        SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Header
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
+                  child: Text(
+                    'Progress Gallery',
+                    style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                      fontWeight: FontWeight.w600, // Consistent font weight
+                      color: const Color(0xFF1F1F1F),
+                    ),
+                  ),
                 ),
-                itemCount: items.length,
-                itemBuilder: (context, i) => _GalleryCard(item: items[i]),
-              ),
+                const SizedBox(height: 8),
+                // Grid - FIX: Responsive grid with better aspect ratio handling
+                Expanded(
+                  child: StreamBuilder<List<_GalleryItem>>(
+                    stream: _items(),
+                    builder: (context, snapshot) {
+                      final items = snapshot.data ?? const <_GalleryItem>[];
+                      return LayoutBuilder(
+                        builder: (context, constraints) {
+                          final screenWidth = constraints.maxWidth;
+                          final crossAxisCount = screenWidth > 600 ? 3 : 2;
+                          final childAspectRatio = screenWidth > 600 ? 0.85 : 0.82;
+                          return GridView.builder(
+                            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                              crossAxisCount: crossAxisCount,
+                              crossAxisSpacing: 12,
+                              mainAxisSpacing: 12,
+                              childAspectRatio: childAspectRatio,
+                            ),
+                            itemCount: items.length,
+                            itemBuilder: (context, i) => _GalleryCard(item: items[i]),
+                          );
+                        },
+                      );
+                    },
+                  ),
+                ),
+              ],
             ),
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 }
 
 class _GalleryItem {
-  final String photoId; // mock image key
+  final String photoId; // image url
   final String date;
   final String description;
   final String status;
@@ -146,7 +161,9 @@ class _GalleryCard extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
+                // Image area - FIX: Better proportions
                 Expanded(
+                  flex: 3,
                   child: ClipRRect(
                     borderRadius: const BorderRadius.only(
                       topLeft: Radius.circular(18),
@@ -156,44 +173,75 @@ class _GalleryCard extends StatelessWidget {
                       fit: StackFit.expand,
                       children: [
                         Container(color: Colors.grey[300]),
-                        Center(
-                          child: Text(
-                            item.photoId,
-                            style: const TextStyle(fontWeight: FontWeight.w800, color: Color(0xFF1F2937)),
-                          ),
-                        ),
+                        // Image is kept simple to preserve layout; replace with Image.network without changing layout
+                        // while maintaining fallback grey box if url is empty
+                        if (item.photoId.isNotEmpty)
+                          Image.network(item.photoId, fit: BoxFit.cover)
+                        else
+                          const SizedBox.shrink(),
                       ],
                     ),
                   ),
                 ),
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Expanded(
-                            child: Text(item.date, style: const TextStyle(color: Color(0xFF4B5563), fontSize: 12))),
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                            decoration: BoxDecoration(
-                              color: statusColor.withValues(alpha: 0.12),
-                              borderRadius: BorderRadius.circular(999),
-                              border: Border.all(color: statusColor.withValues(alpha: 0.35)),
+                // Content area - FIX: Better text layout and constraints
+                Expanded(
+                  flex: 2,
+                  child: Padding(
+                    padding: const EdgeInsets.all(12),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // Date and status row
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                item.date,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  color: Color(0xFF4B5563),
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
                             ),
-                            child: const Text('Approved', style: TextStyle(color: statusColor, fontWeight: FontWeight.w700, fontSize: 11)),
+                            const SizedBox(width: 8),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: statusColor.withValues(alpha: 0.12),
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(color: statusColor.withValues(alpha: 0.35)),
+                              ),
+                              child: const Text(
+                                'Approved',
+                                style: TextStyle(
+                                  color: statusColor,
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: 10,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        // Description - FIX: Proper text overflow handling
+                        Expanded(
+                          child: Text(
+                            item.description,
+                            maxLines: 3,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontWeight: FontWeight.w500,
+                              color: Color(0xFF1F2937),
+                              fontSize: 13,
+                              height: 1.3, // Better line height for readability
+                            ),
                           ),
-                        ],
-                      ),
-                      const SizedBox(height: 6),
-                      Text(
-                        item.description,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(fontWeight: FontWeight.w600, color: Color(0xFF1F2937)),
-                      ),
-                    ],
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ],
@@ -247,12 +295,10 @@ class _FullScreenViewer extends StatelessWidget {
                           fit: StackFit.expand,
                           children: [
                             Container(color: Colors.grey[300]),
-                            Center(
-                              child: Text(
-                                item.photoId,
-                                style: const TextStyle(fontWeight: FontWeight.w800, color: Color(0xFF1F2937)),
-                              ),
-                            ),
+                            if (item.photoId.isNotEmpty)
+                              Image.network(item.photoId, fit: BoxFit.cover)
+                            else
+                              const SizedBox.shrink(),
                           ],
                         ),
                       ),

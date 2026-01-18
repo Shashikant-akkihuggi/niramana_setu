@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'dart:ui' as ui;
 import '../common/widgets/timeline.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 class _ThemePD {
   static const Color primary = Color(0xFF136DEC);
@@ -8,33 +9,45 @@ class _ThemePD {
 }
 
 class AttendanceEntry {
+  final String id;
   final String workerName;
   final bool present;
   final String role;
   final DateTime date;
-  AttendanceEntry({required this.workerName, required this.present, required this.role, required this.date});
+  AttendanceEntry({required this.id, required this.workerName, required this.present, required this.role, required this.date});
+
+  static AttendanceEntry fromFirestore(DocumentSnapshot doc) {
+    final data = doc.data() as Map<String, dynamic>;
+    return AttendanceEntry(
+      id: doc.id,
+      workerName: data['workerName'] ?? '',
+      present: data['present'] == true,
+      role: data['role'] ?? '',
+      date: (data['date'] as Timestamp?)?.toDate() ?? DateTime.now(),
+    );
+  }
 }
 
-// Mock attendance list for today (can be replaced by a repository later)
-final List<AttendanceEntry> mockAttendanceToday = [
-  AttendanceEntry(workerName: 'John Kumar', present: true, role: 'Mason', date: DateTime.now()),
-  AttendanceEntry(workerName: 'Ravi Singh', present: false, role: 'Helper', date: DateTime.now()),
-  AttendanceEntry(workerName: 'Meera Nair', present: true, role: 'Electrician', date: DateTime.now()),
-  AttendanceEntry(workerName: 'Sanjay Patil', present: true, role: 'Carpenter', date: DateTime.now()),
-  AttendanceEntry(workerName: 'Priya Verma', present: true, role: 'Supervisor', date: DateTime.now()),
-  AttendanceEntry(workerName: 'Arun Das', present: true, role: 'Steel Fixer', date: DateTime.now()),
-  AttendanceEntry(workerName: 'Deepak Sharma', present: false, role: 'Painter', date: DateTime.now()),
-  AttendanceEntry(workerName: 'Mahesh Rao', present: true, role: 'Plumber', date: DateTime.now()),
-];
-
 class ProjectDetailsScreen extends StatelessWidget {
-  const ProjectDetailsScreen({super.key});
+  final String projectId;
+  const ProjectDetailsScreen({super.key, required this.projectId});
+
+  Stream<List<AttendanceEntry>> _attendanceTodayStream() {
+    final today = DateTime.now();
+    final start = DateTime(today.year, today.month, today.day);
+    final end = start.add(const Duration(days: 1));
+    return FirebaseFirestore.instance
+        .collection('projects')
+        .doc(projectId)
+        .collection('attendance')
+        .where('date', isGreaterThanOrEqualTo: Timestamp.fromDate(start))
+        .where('date', isLessThan: Timestamp.fromDate(end))
+        .snapshots()
+        .map((s) => s.docs.map(AttendanceEntry.fromFirestore).toList());
+  }
 
   @override
   Widget build(BuildContext context) {
-    final int totalWorkers = mockAttendanceToday.length;
-    final int presentWorkers = mockAttendanceToday.where((w) => w.present).length;
-
     return Scaffold(
       appBar: AppBar(
         title: const Text('Project Details'),
@@ -46,36 +59,40 @@ class ProjectDetailsScreen extends StatelessWidget {
         children: [
           _Background(),
           SafeArea(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  _HeaderCard(
-                    project: 'Skyline Tower A',
-                    engineer: 'Eng. A. Mehta',
+            child: StreamBuilder<List<AttendanceEntry>>(
+              stream: _attendanceTodayStream(),
+              builder: (context, snapshot) {
+                final items = snapshot.data ?? const <AttendanceEntry>[];
+                final int totalWorkers = items.length;
+                final int presentWorkers = items.where((w) => w.present).length;
+                return SingleChildScrollView(
+                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      _HeaderCard(
+                        project: 'Project',
+                        engineer: 'Engineer',
+                      ),
+                      const SizedBox(height: 12),
+                      _DatesProgressCard(
+                        start: DateTime(2024, 1, 12),
+                        end: DateTime(2025, 11, 30),
+                        progress: 0.62,
+                      ),
+                      const SizedBox(height: 12),
+                      const _CostSummaryCard(total: 1.20, spent: 0.87, remaining: 0.33),
+                      const SizedBox(height: 12),
+                      const MilestoneTimeline(),
+                      const SizedBox(height: 12),
+                      _WorkforceOverviewCard(
+                        totalWorkers: totalWorkers,
+                        presentWorkers: presentWorkers,
+                      ),
+                    ],
                   ),
-                  const SizedBox(height: 12),
-                  _DatesProgressCard(
-                    start: DateTime(2024, 1, 12),
-                    end: DateTime(2025, 11, 30),
-                    progress: 0.62,
-                  ),
-                  const SizedBox(height: 12),
-                  const _CostSummaryCard(total: 1.20, spent: 0.87, remaining: 0.33),
-                  const SizedBox(height: 12),
-
-                  // Timeline / Milestones
-                  const MilestoneTimeline(),
-                  const SizedBox(height: 12),
-
-                  // Workforce Overview glass card
-                  _WorkforceOverviewCard(
-                    totalWorkers: totalWorkers,
-                    presentWorkers: presentWorkers,
-                  ),
-                ],
-              ),
+                );
+              },
             ),
           ),
         ],

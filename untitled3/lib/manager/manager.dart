@@ -2,9 +2,16 @@ import 'package:flutter/material.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'dart:ui' as ui;
 import 'manager_pages.dart';
+import 'manager_project_card.dart';
 import 'attendance.dart' as att;
+import 'screens/manager_profile_screen.dart';
 import '../common/notifications.dart';
 import '../common/services/logout_service.dart';
+import '../common/widgets/public_id_display.dart';
+import '../services/notification_service.dart';
+import '../services/real_time_project_service.dart';
+import '../common/models/project_model.dart';
+import '../common/project_context.dart';
 
 // Dashboard shell for Field Manager: Scaffold + AppBar + BottomNavigationBar + Page switching
 class FieldManagerDashboard extends StatefulWidget {
@@ -17,28 +24,43 @@ class FieldManagerDashboard extends StatefulWidget {
 class _FieldManagerDashboardState extends State<FieldManagerDashboard> {
   int _selectedIndex = 0;
 
-  final List<Widget> _pages = const [
-    ManagerHomeScreen(),
-    ReportsScreen(),
-    MaterialsScreen(),
-    att.AttendanceScreen(),
-  ];
-
   @override
   Widget build(BuildContext context) {
+    // Conditional pages based on project context
+    final List<Widget> pages = ProjectContext.activeProjectId == null 
+      ? const [
+          // STATE 1: MANAGER NOT INSIDE ANY PROJECT - 3 pages only
+          ManagerHomeScreen(), // Home - shows project list + Manager ID
+          ManagerSocialScreen(), // Social - placeholder
+          ManagerProfileScreen(), // Profile
+        ]
+      : const [
+          // STATE 2: MANAGER INSIDE A PROJECT - Full pages
+          ManagerHomeScreen(), // Home with features
+          ManagerProjectsScreen(), // Projects
+          MaterialsScreen(), // Materials
+          att.AttendanceScreen(), // Attendance
+        ];
+
     return Scaffold(
       extendBody: true,
       body: SafeArea(
         child: Column(
           children: [
             glassHeader(context),
-            Expanded(child: _pages[_selectedIndex]),
+            Expanded(child: pages[_selectedIndex]),
           ],
         ),
       ),
       bottomNavigationBar: _GlassBottomNav(
         currentIndex: _selectedIndex,
-        onTap: (index) => setState(() => _selectedIndex = index),
+        onTap: (index) {
+          // Handle navigation with bounds checking
+          final maxIndex = ProjectContext.activeProjectId == null ? 2 : 3;
+          if (index <= maxIndex) {
+            setState(() => _selectedIndex = index);
+          }
+        },
       ),
     );
   }
@@ -76,24 +98,41 @@ class _GlassBottomNav extends StatelessWidget {
             selectedItemColor: const Color(0xFF111827),
             unselectedItemColor: const Color(0xFF6B7280),
             onTap: onTap,
-            items: const [
-              BottomNavigationBarItem(
-                icon: Icon(Icons.home_rounded),
-                label: 'Home',
-              ),
-              BottomNavigationBarItem(
-                icon: Icon(Icons.description_rounded),
-                label: 'Reports',
-              ),
-              BottomNavigationBarItem(
-                icon: Icon(Icons.inventory_2_rounded),
-                label: 'Materials',
-              ),
-              BottomNavigationBarItem(
-                icon: Icon(Icons.how_to_reg_rounded),
-                label: 'Attendance',
-              ),
-            ],
+            items: ProjectContext.activeProjectId == null 
+              ? const [
+                  // STATE 1: MANAGER NOT INSIDE ANY PROJECT - Show only 3 icons
+                  BottomNavigationBarItem(
+                    icon: Icon(Icons.home_rounded),
+                    label: 'Home',
+                  ),
+                  BottomNavigationBarItem(
+                    icon: Icon(Icons.people_rounded),
+                    label: 'Social',
+                  ),
+                  BottomNavigationBarItem(
+                    icon: Icon(Icons.person_rounded),
+                    label: 'Profile',
+                  ),
+                ]
+              : const [
+                  // STATE 2: MANAGER INSIDE A PROJECT - Show full footer
+                  BottomNavigationBarItem(
+                    icon: Icon(Icons.home_rounded),
+                    label: 'Home',
+                  ),
+                  BottomNavigationBarItem(
+                    icon: Icon(Icons.folder_open_rounded),
+                    label: 'Projects',
+                  ),
+                  BottomNavigationBarItem(
+                    icon: Icon(Icons.inventory_2_rounded),
+                    label: 'Materials',
+                  ),
+                  BottomNavigationBarItem(
+                    icon: Icon(Icons.how_to_reg_rounded),
+                    label: 'Attendance',
+                  ),
+                ],
           ),
         ),
       ),
@@ -158,11 +197,11 @@ Widget glassHeader(BuildContext context) {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
+                const Text(
                   "Field Manager Dashboard",
                   style: TextStyle(fontWeight: FontWeight.w800, fontSize: 17),
                 ),
-                SizedBox(height: 2),
+                const SizedBox(height: 2),
                 Row(
                   children: const [
                     Icon(
@@ -178,6 +217,16 @@ Widget glassHeader(BuildContext context) {
                         color: Colors.orange,
                         fontWeight: FontWeight.bold,
                       ),
+                    ),
+                    SizedBox(width: 8),
+                    InlinePublicIdDisplay(
+                      prefix: '• Manager ID: ',
+                      style: TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w600,
+                        color: Color(0xFF3B82F6),
+                      ),
+                      showIcon: false,
                     ),
                   ],
                 ),
@@ -235,30 +284,36 @@ Widget glassHeader(BuildContext context) {
                     child: Icon(Icons.notifications_none, size: 22),
                   ),
                 ),
-                if (getUnreadCount(role: 'Manager') > 0)
-                  Positioned(
-                    right: -2,
-                    top: -2,
-                    child: Container(
-                      height: 18,
-                      width: 18,
-                      decoration: BoxDecoration(
-                        color: Colors.red,
-                        shape: BoxShape.circle,
-                      ),
-                      alignment: Alignment.center,
-                      child: Text(
-                        (getUnreadCount(role: 'Manager') > 9)
-                            ? '9+'
-                            : '${getUnreadCount(role: 'Manager')}',
-                        style: TextStyle(
-                          fontSize: 10,
-                          color: Colors.white,
-                          fontWeight: FontWeight.bold,
+                StreamBuilder<int>(
+                  stream: NotificationService.getUnreadNotificationsCount(),
+                  builder: (context, snapshot) {
+                    final count = snapshot.data ?? 0;
+                    if (count > 0) {
+                      return Positioned(
+                        right: -2,
+                        top: -2,
+                        child: Container(
+                          height: 18,
+                          width: 18,
+                          decoration: BoxDecoration(
+                            color: Colors.red,
+                            shape: BoxShape.circle,
+                          ),
+                          alignment: Alignment.center,
+                          child: Text(
+                            count > 9 ? '9+' : '$count',
+                            style: TextStyle(
+                              fontSize: 10,
+                              color: Colors.white,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
                         ),
-                      ),
-                    ),
-                  ),
+                      );
+                    }
+                    return const SizedBox.shrink();
+                  },
+                ),
               ],
             ),
             SizedBox(width: 8),
@@ -285,4 +340,195 @@ Widget glassHeader(BuildContext context) {
       ),
     ),
   );
+}
+
+/// Manager Projects Screen - shows projects where manager can accept
+class ManagerProjectsScreen extends StatelessWidget {
+  const ManagerProjectsScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Project Acceptance',
+            style: TextStyle(
+              fontSize: 24,
+              fontWeight: FontWeight.w800,
+              color: Color(0xFF1F1F1F),
+            ),
+          ),
+          const SizedBox(height: 8),
+          const Text(
+            'Accept projects that have been approved by owners',
+            style: TextStyle(
+              fontSize: 14,
+              color: Color(0xFF6B7280),
+            ),
+          ),
+          const SizedBox(height: 20),
+          
+          Expanded(
+            child: StreamBuilder<List<ProjectModel>>(
+              stream: RealTimeProjectService.getManagerProjects(),
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Center(
+                    child: CircularProgressIndicator(
+                      valueColor: AlwaysStoppedAnimation<Color>(
+                        Color(0xFF3B82F6),
+                      ),
+                    ),
+                  );
+                }
+
+                if (snapshot.hasError) {
+                  return Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Icon(
+                          Icons.error_outline,
+                          size: 64,
+                          color: Color(0xFFEF4444),
+                        ),
+                        const SizedBox(height: 16),
+                        const Text(
+                          'Error loading projects',
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.w600,
+                            color: Color(0xFF1F2937),
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          snapshot.error.toString(),
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(
+                            color: Color(0xFF6B7280),
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                }
+
+                final projects = snapshot.data ?? [];
+
+                if (projects.isEmpty) {
+                  return Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Icon(
+                          Icons.folder_open,
+                          size: 64,
+                          color: Color(0xFF9CA3AF),
+                        ),
+                        const SizedBox(height: 16),
+                        const Text(
+                          'No Projects Assigned',
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.w600,
+                            color: Color(0xFF1F2937),
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        const Text(
+                          'Projects assigned to you will appear here',
+                          style: TextStyle(
+                            color: Color(0xFF6B7280),
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                }
+
+                return ListView.builder(
+                  itemCount: projects.length,
+                  itemBuilder: (context, index) {
+                    final project = projects[index];
+                    return ManagerProjectCard(
+                      project: project,
+                      onTap: () {
+                        // Set active project and navigate to dashboard with features
+                        ProjectContext.setActiveProject(project.id, project.projectName);
+                        Navigator.of(context).pushReplacement(
+                          MaterialPageRoute(builder: (_) => FieldManagerDashboard()),
+                        );
+                      },
+                    );
+                  },
+                );
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class ManagerSocialScreen extends StatelessWidget {
+  const ManagerSocialScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      children: [
+        // Background gradient
+        Container(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                const Color(0xFF136DEC).withValues(alpha: 0.12),
+                const Color(0xFF7A5AF8).withValues(alpha: 0.10),
+                Colors.white,
+              ],
+              stops: const [0.0, 0.45, 1.0],
+            ),
+          ),
+        ),
+
+        SafeArea(
+          child: Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(
+                  Icons.people_rounded,
+                  size: 64,
+                  color: Color(0xFF9CA3AF),
+                ),
+                const SizedBox(height: 16),
+                const Text(
+                  'Social Features',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w600,
+                    color: Color(0xFF1F2937),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                const Text(
+                  'Coming soon',
+                  style: TextStyle(
+                    color: Color(0xFF6B7280),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
 }

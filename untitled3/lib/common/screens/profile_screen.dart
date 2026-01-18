@@ -5,6 +5,7 @@ import '../models/user_profile.dart';
 import '../services/profile_repository.dart';
 import '../services/connectivity_service.dart';
 import '../services/sync_service.dart';
+import '../widgets/public_id_display.dart';
 
 /// Profile Screen - Shared UI for all roles
 /// 
@@ -399,6 +400,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 ),
                 const SizedBox(height: 16),
 
+                // Public ID Display (read-only, copy-friendly)
+                PublicIdDisplay(
+                  label: '${_getRoleDisplayName()} ID',
+                  padding: EdgeInsets.zero,
+                ),
+                const SizedBox(height: 16),
+
                 // Phone
                 _buildField(
                   label: 'Phone (Optional)',
@@ -416,6 +424,23 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   icon: Icons.badge_outlined,
                   enabled: false,
                 ),
+                const SizedBox(height: 16),
+
+                // Public ID (read-only, only for Owner and Manager)
+                if (widget.role == 'ownerClient' || widget.role == 'fieldManager')
+                  PublicIdDisplay(
+                    label: widget.role == 'ownerClient' ? 'Owner ID' : 'Manager ID',
+                    labelStyle: const TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: Color(0xFF6F6F6F),
+                    ),
+                    valueStyle: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: Color(0xFF374151),
+                    ),
+                  ),
               ],
             ),
           ),

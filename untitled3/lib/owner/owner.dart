@@ -2,10 +2,23 @@ import 'package:flutter/material.dart';
 import 'dart:ui' as ui;
 import 'gallery.dart';
 import 'invoices.dart';
+import 'owner_profile_tab.dart';
+import 'owner_project_card.dart';
+import 'project_status_dashboard.dart';
+import 'direct_communication.dart';
 import 'plot_analysis/plot_entry_screen.dart';
 import '../common/screens/milestone_timeline_screen.dart';
 import '../common/screens/milestone_hub_screen.dart';
 import '../common/services/logout_service.dart';
+import '../common/localization/language_controller.dart';
+import '../common/widgets/public_id_display.dart';
+import '../services/project_service.dart';
+import '../services/real_time_project_service.dart';
+import '../common/models/project_model.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:hive_flutter/hive_flutter.dart';
+import '../common/project_context.dart';
 
 class OwnerDashboard extends StatefulWidget {
   const OwnerDashboard({super.key});
@@ -15,24 +28,111 @@ class OwnerDashboard extends StatefulWidget {
 }
 
 class _OwnerDashboardState extends State<OwnerDashboard> {
+  int _currentIndex = 0;
+  final PageController _pageController = PageController();
 
   static const Color primary = Color(0xFF136DEC);
   static const Color accent = Color(0xFF7A5AF8);
 
   @override
+  void dispose() {
+    _pageController.dispose();
+    super.dispose();
+  }
+
+  void _onTabTapped(int index) {
+    // Handle different index mappings based on project context
+    int pageIndex = index;
+    
+    if (ProjectContext.activeProjectId == null) {
+      // STATE 1: 3-tab footer (Home=0, Social=1, Profile=2)
+      // Map to PageView indices: Home=0, Social=1, Profile=2
+      pageIndex = index;
+    } else {
+      // STATE 2: 5-tab footer (Dashboard=0, Gallery=1, Invoices=2, Projects=3, Profile=4)
+      // Map to PageView indices: Dashboard=0, Gallery=1, Invoices=2, Projects=3, Profile=4
+      pageIndex = index;
+    }
+    
+    setState(() {
+      _currentIndex = index;
+    });
+    _pageController.animateToPage(
+      pageIndex,
+      duration: const Duration(milliseconds: 300),
+      curve: Curves.easeInOut,
+    );
+  }
+
+  void _onPageChanged(int index) {
+    // Handle different index mappings based on project context
+    int footerIndex = index;
+    
+    if (ProjectContext.activeProjectId == null) {
+      // STATE 1: 3-page PageView maps to 3-tab footer
+      footerIndex = index;
+    } else {
+      // STATE 2: 5-page PageView maps to 5-tab footer
+      footerIndex = index;
+    }
+    
+    setState(() {
+      _currentIndex = footerIndex;
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: Stack(
+      body: PageView(
+        controller: _pageController,
+        onPageChanged: _onPageChanged,
+        children: ProjectContext.activeProjectId == null 
+          ? [
+              // STATE 1: NEW OWNER / NO PROJECT SELECTED - 3 pages only
+              _DashboardTab(), // Home - shows project list
+              _SocialTab(), // Social - placeholder
+              const OwnerProfileTab(), // Profile
+            ]
+          : [
+              // STATE 2: OWNER INSIDE A PROJECT - Full pages
+              _DashboardTab(), // Dashboard with features
+              const OwnerProjectsScreen(), // Gallery placeholder
+              const OwnerProjectsScreen(), // Invoices placeholder  
+              const OwnerProjectsScreen(), // Projects
+              const OwnerProfileTab(), // Profile
+            ],
+      ),
+      bottomNavigationBar: _GlassBottomNav(
+        currentIndex: _currentIndex,
+        onTap: _onTabTapped,
+      ),
+    );
+  }
+}
+
+class _DashboardTab extends StatelessWidget {
+  static const Color primary = Color(0xFF136DEC);
+  static const Color accent = Color(0xFF7A5AF8);
+
+  @override
+  Widget build(BuildContext context) {
+    final langController = LanguageController();
+    
+    // CORE RULE: Dashboards must show ONLY project cards. Features must be visible ONLY after a project is selected.
+    if (ProjectContext.activeProjectId == null) {
+      // Show project list only - NO FEATURES
+      return Stack(
         children: [
-          // Background gradient (simplified, no glow blobs)
+          // Background gradient
           Container(
             decoration: BoxDecoration(
               gradient: LinearGradient(
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
                 colors: [
-                  _OwnerDashboardState.primary.withValues(alpha: 0.12),
-                  _OwnerDashboardState.accent.withValues(alpha: 0.10),
+                  primary.withValues(alpha: 0.12),
+                  accent.withValues(alpha: 0.10),
                   Colors.white,
                 ],
                 stops: const [0.0, 0.45, 1.0],
@@ -43,7 +143,7 @@ class _OwnerDashboardState extends State<OwnerDashboard> {
           SafeArea(
             child: Column(
               children: [
-                // Header glass bar with logout button
+                // Header glass bar with profile and logout button
                 Padding(
                   padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
                   child: ClipRRect(
@@ -64,7 +164,7 @@ class _OwnerDashboardState extends State<OwnerDashboard> {
                               offset: const Offset(0, 8),
                             ),
                             BoxShadow(
-                              color: _OwnerDashboardState.primary.withValues(alpha: 0.16),
+                              color: primary.withValues(alpha: 0.16),
                               blurRadius: 26,
                               spreadRadius: 1,
                             ),
@@ -79,44 +179,54 @@ class _OwnerDashboardState extends State<OwnerDashboard> {
                             Expanded(
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
-                                children: const [
+                                children: [
                                   Text(
-                                    'Owner Dashboard',
-                                    style: TextStyle(
+                                    langController.t('owner_dashboard'),
+                                    style: const TextStyle(
                                       fontSize: 18,
                                       fontWeight: FontWeight.w800,
                                       color: Color(0xFF1F1F1F),
                                     ),
                                   ),
-                                  SizedBox(height: 4),
+                                  const SizedBox(height: 4),
                                   Text(
-                                    'Investment transparency & project overview',
-                                    style: TextStyle(color: Color(0xFF5C5C5C)),
+                                    'Select a project to access features',
+                                    style: const TextStyle(color: Color(0xFF5C5C5C)),
                                   ),
                                 ],
                               ),
                             ),
-                            // Profile icon
-                            Container(
-                              height: 36,
-                              width: 36,
-                              decoration: BoxDecoration(
-                                shape: BoxShape.circle,
-                                gradient: const LinearGradient(
-                                  colors: [_OwnerDashboardState.primary, _OwnerDashboardState.accent],
-                                ),
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: _OwnerDashboardState.primary.withValues(alpha: 0.25),
-                                    blurRadius: 14,
-                                    spreadRadius: 1,
+                            // Profile icon - now functional
+                            GestureDetector(
+                              onTap: () {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (_) => const OwnerProfileTab(),
                                   ),
-                                ],
-                              ),
-                              child: const Icon(
-                                Icons.person,
-                                color: Colors.white,
-                                size: 20,
+                                );
+                              },
+                              child: Container(
+                                height: 36,
+                                width: 36,
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  gradient: const LinearGradient(
+                                    colors: [primary, accent],
+                                  ),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: primary.withValues(alpha: 0.25),
+                                      blurRadius: 14,
+                                      spreadRadius: 1,
+                                    ),
+                                  ],
+                                ),
+                                child: const Icon(
+                                  Icons.person,
+                                  color: Colors.white,
+                                  size: 20,
+                                ),
                               ),
                             ),
                             const SizedBox(width: 8),
@@ -128,7 +238,242 @@ class _OwnerDashboardState extends State<OwnerDashboard> {
                                 size: 22,
                               ),
                               onPressed: () => LogoutService.logout(context),
-                              tooltip: 'Logout',
+                              tooltip: langController.t('logout'),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+
+                // Owner ID Card
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(16),
+                    child: BackdropFilter(
+                      filter: ui.ImageFilter.blur(sigmaX: 14, sigmaY: 14),
+                      child: Container(
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.55),
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(color: Colors.white.withValues(alpha: 0.45)),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withValues(alpha: 0.06),
+                              blurRadius: 14,
+                              offset: const Offset(0, 6),
+                            ),
+                          ],
+                        ),
+                        padding: const EdgeInsets.all(12),
+                        child: Row(
+                          children: [
+                            Container(
+                              height: 32,
+                              width: 32,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                gradient: const LinearGradient(
+                                  colors: [primary, accent],
+                                ),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: primary.withValues(alpha: 0.25),
+                                    blurRadius: 10,
+                                  ),
+                                ],
+                              ),
+                              child: const Icon(Icons.badge, color: Colors.white, size: 16),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: FutureBuilder<DocumentSnapshot>(
+                                future: FirebaseFirestore.instance
+                                    .collection('users')
+                                    .doc(FirebaseAuth.instance.currentUser!.uid)
+                                    .get(),
+                                builder: (context, snapshot) {
+                                  if (snapshot.connectionState == ConnectionState.waiting) {
+                                    return const SizedBox(); // do not render empty ID
+                                  }
+                                  
+                                  if (!snapshot.hasData || !snapshot.data!.exists) {
+                                    return const SizedBox();
+                                  }
+                                  
+                                  final data = snapshot.data!.data() as Map<String, dynamic>;
+                                  final publicId = data['publicId'];
+                                  
+                                  if (publicId == null || publicId.toString().isEmpty) {
+                                    return const SizedBox();
+                                  }
+                                  
+                                  return InlinePublicIdDisplay(
+                                    prefix: 'Owner ID: ',
+                                    style: const TextStyle(
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w600,
+                                      color: Color(0xFF1F1F1F),
+                                    ),
+                                    showIcon: false,
+                                    publicId: publicId,
+                                    role: 'Owner',
+                                  );
+                                },
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+
+                // Content area - Show project list
+                Expanded(
+                  child: OwnerProjectsScreen(),
+                ),
+              ],
+            ),
+          ),
+        ],
+      );
+    } else {
+      // Show feature grid - FEATURES UNLOCKED
+      return Stack(
+        children: [
+          // Background gradient
+          Container(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  primary.withValues(alpha: 0.12),
+                  accent.withValues(alpha: 0.10),
+                  Colors.white,
+                ],
+                stops: const [0.0, 0.45, 1.0],
+              ),
+            ),
+          ),
+
+          SafeArea(
+            child: Column(
+              children: [
+                // Header glass bar with profile and logout button
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(18),
+                    child: BackdropFilter(
+                      filter: ui.ImageFilter.blur(sigmaX: 18, sigmaY: 18),
+                      child: Container(
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.55),
+                          borderRadius: BorderRadius.circular(18),
+                          border: Border.all(
+                            color: Colors.white.withValues(alpha: 0.45),
+                          ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withValues(alpha: 0.06),
+                              blurRadius: 16,
+                              offset: const Offset(0, 8),
+                            ),
+                            BoxShadow(
+                              color: primary.withValues(alpha: 0.16),
+                              blurRadius: 26,
+                              spreadRadius: 1,
+                            ),
+                          ],
+                        ),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 14,
+                        ),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    langController.t('owner_dashboard'),
+                                    style: const TextStyle(
+                                      fontSize: 18,
+                                      fontWeight: FontWeight.w800,
+                                      color: Color(0xFF1F1F1F),
+                                    ),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    ProjectContext.activeProjectName ?? 'Unknown Project',
+                                    style: const TextStyle(color: Color(0xFF5C5C5C)),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            // Back to projects button
+                            IconButton(
+                              icon: const Icon(
+                                Icons.close,
+                                color: Color(0xFF1F1F1F),
+                                size: 22,
+                              ),
+                              onPressed: () {
+                                ProjectContext.clearActiveProject();
+                                Navigator.of(context).pushReplacement(
+                                  MaterialPageRoute(builder: (_) => OwnerDashboard()),
+                                );
+                              },
+                              tooltip: 'Back to Projects',
+                            ),
+                            // Profile icon - now functional
+                            GestureDetector(
+                              onTap: () {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (_) => const OwnerProfileTab(),
+                                  ),
+                                );
+                              },
+                              child: Container(
+                                height: 36,
+                                width: 36,
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  gradient: const LinearGradient(
+                                    colors: [primary, accent],
+                                  ),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: primary.withValues(alpha: 0.25),
+                                      blurRadius: 14,
+                                      spreadRadius: 1,
+                                    ),
+                                  ],
+                                ),
+                                child: const Icon(
+                                  Icons.person,
+                                  color: Colors.white,
+                                  size: 20,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            // Logout button
+                            IconButton(
+                              icon: const Icon(
+                                Icons.logout,
+                                color: Color(0xFF1F1F1F),
+                                size: 22,
+                              ),
+                              onPressed: () => LogoutService.logout(context),
+                              tooltip: langController.t('logout'),
                             ),
                           ],
                         ),
@@ -144,75 +489,208 @@ class _OwnerDashboardState extends State<OwnerDashboard> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        // Money & Progress Stats (glass cards)
+                        // Owner ID Card
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 16),
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(16),
+                            child: BackdropFilter(
+                              filter: ui.ImageFilter.blur(sigmaX: 14, sigmaY: 14),
+                              child: Container(
+                                decoration: BoxDecoration(
+                                  color: Colors.white.withValues(alpha: 0.55),
+                                  borderRadius: BorderRadius.circular(16),
+                                  border: Border.all(color: Colors.white.withValues(alpha: 0.45)),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: Colors.black.withValues(alpha: 0.06),
+                                      blurRadius: 14,
+                                      offset: const Offset(0, 6),
+                                    ),
+                                  ],
+                                ),
+                                padding: const EdgeInsets.all(12),
+                                child: Row(
+                                  children: [
+                                    Container(
+                                      height: 32,
+                                      width: 32,
+                                      decoration: BoxDecoration(
+                                        shape: BoxShape.circle,
+                                        gradient: const LinearGradient(
+                                          colors: [primary, accent],
+                                        ),
+                                        boxShadow: [
+                                          BoxShadow(
+                                            color: primary.withValues(alpha: 0.25),
+                                            blurRadius: 10,
+                                          ),
+                                        ],
+                                      ),
+                                      child: const Icon(Icons.badge, color: Colors.white, size: 16),
+                                    ),
+                                    const SizedBox(width: 12),
+                                    Expanded(
+                                      child: FutureBuilder<DocumentSnapshot>(
+                                        future: FirebaseFirestore.instance
+                                            .collection('users')
+                                            .doc(FirebaseAuth.instance.currentUser!.uid)
+                                            .get(),
+                                        builder: (context, snapshot) {
+                                          if (snapshot.connectionState == ConnectionState.waiting) {
+                                            return const SizedBox(); // do not render empty ID
+                                          }
+                                          
+                                          if (!snapshot.hasData || !snapshot.data!.exists) {
+                                            return const SizedBox();
+                                          }
+                                          
+                                          final data = snapshot.data!.data() as Map<String, dynamic>;
+                                          final publicId = data['publicId'];
+                                          
+                                          if (publicId == null || publicId.toString().isEmpty) {
+                                            return const SizedBox();
+                                          }
+                                          
+                                          return InlinePublicIdDisplay(
+                                            prefix: 'Owner ID: ',
+                                            style: const TextStyle(
+                                              fontSize: 14,
+                                              fontWeight: FontWeight.w600,
+                                              color: Color(0xFF1F1F1F),
+                                            ),
+                                            showIcon: false,
+                                            publicId: publicId,
+                                            role: 'Owner',
+                                          );
+                                        },
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                        
+                        // Money & Progress Stats (glass cards) - Real-time data (project-scoped)
                         SizedBox(
                           height: 110,
                           child: ListView(
                             scrollDirection: Axis.horizontal,
-                            children: const [
-                              _StatCard(
-                                title: 'Total Investment',
-                                icon: Icons.savings_outlined,
-                                value: '\u20B91.2 Cr',
+                            children: [
+                              StreamBuilder<double>(
+                                stream: RealTimeProjectService.getProjectTotalInvestment(ProjectContext.activeProjectId!),
+                                builder: (context, snapshot) {
+                                  final value = snapshot.data ?? 0.0;
+                                  final displayValue = value >= 10000000 
+                                      ? '\u20B9${(value / 10000000).toStringAsFixed(1)} Cr'
+                                      : value >= 100000
+                                      ? '\u20B9${(value / 100000).toStringAsFixed(1)} L'
+                                      : '\u20B9${value.toStringAsFixed(0)}';
+                                  return _StatCard(
+                                    title: langController.t('total_investment'),
+                                    icon: Icons.savings_outlined,
+                                    value: displayValue,
+                                  );
+                                },
                               ),
-                              SizedBox(width: 12),
-                              _StatCard(
-                                title: 'Amount Spent',
-                                icon: Icons.account_balance_wallet_outlined,
-                                value: '\u20B987 L',
+                              const SizedBox(width: 12),
+                              StreamBuilder<double>(
+                                stream: RealTimeProjectService.getProjectAmountSpent(ProjectContext.activeProjectId!),
+                                builder: (context, snapshot) {
+                                  final value = snapshot.data ?? 0.0;
+                                  final displayValue = value >= 10000000 
+                                      ? '\u20B9${(value / 10000000).toStringAsFixed(1)} Cr'
+                                      : value >= 100000
+                                      ? '\u20B9${(value / 100000).toStringAsFixed(1)} L'
+                                      : '\u20B9${value.toStringAsFixed(0)}';
+                                  return _StatCard(
+                                    title: langController.t('amount_spent'),
+                                    icon: Icons.account_balance_wallet_outlined,
+                                    value: displayValue,
+                                  );
+                                },
                               ),
-                              SizedBox(width: 12),
-                              _StatCard(
-                                title: 'Remaining Budget',
-                                icon: Icons.account_balance_outlined,
-                                value: '\u20B935 L',
+                              const SizedBox(width: 12),
+                              StreamBuilder<double>(
+                                stream: RealTimeProjectService.getProjectTotalInvestment(ProjectContext.activeProjectId!),
+                                builder: (context, totalSnapshot) {
+                                  return StreamBuilder<double>(
+                                    stream: RealTimeProjectService.getProjectAmountSpent(ProjectContext.activeProjectId!),
+                                    builder: (context, spentSnapshot) {
+                                      final total = totalSnapshot.data ?? 0.0;
+                                      final spent = spentSnapshot.data ?? 0.0;
+                                      final remaining = total - spent;
+                                      final displayValue = remaining >= 10000000 
+                                          ? '\u20B9${(remaining / 10000000).toStringAsFixed(1)} Cr'
+                                          : remaining >= 100000
+                                          ? '\u20B9${(remaining / 100000).toStringAsFixed(1)} L'
+                                          : '\u20B9${remaining.toStringAsFixed(0)}';
+                                      return _StatCard(
+                                        title: langController.t('remaining_budget'),
+                                        icon: Icons.account_balance_outlined,
+                                        value: displayValue,
+                                      );
+                                    },
+                                  );
+                                },
                               ),
-                              SizedBox(width: 12),
-                              _StatCard(
-                                title: 'Overall Progress',
-                                icon: Icons.donut_large_outlined,
-                                value: '62%',
+                              const SizedBox(width: 12),
+                              StreamBuilder<double>(
+                                stream: RealTimeProjectService.getProjectProgress(ProjectContext.activeProjectId!),
+                                builder: (context, snapshot) {
+                                  final progress = snapshot.data ?? 0.0;
+                                  return _StatCard(
+                                    title: langController.t('overall_progress'),
+                                    icon: Icons.donut_large_outlined,
+                                    value: '${progress.toStringAsFixed(0)}%',
+                                  );
+                                },
                               ),
                             ],
                           ),
                         ),
                         const SizedBox(height: 16),
 
-                        // Main Action Cards (2x2)
-                        GridView.count(
-                          crossAxisCount: 2,
-                          shrinkWrap: true,
-                          mainAxisSpacing: 12,
-                          crossAxisSpacing: 12,
-                          physics: const NeverScrollableScrollPhysics(),
-                          childAspectRatio: 1.05,
-                          children: [
+                        // Main Action Cards (responsive 2x3 grid) - project-scoped features
+                        LayoutBuilder(
+                          builder: (context, constraints) {
+                            // FIX: Responsive grid that adapts to screen width
+                            final screenWidth = constraints.maxWidth;
+                            final crossAxisCount = screenWidth > 600 ? 3 : 2;
+                            final childAspectRatio = screenWidth > 600 ? 1.1 : 1.05;
+                            
+                            return GridView.count(
+                              crossAxisCount: crossAxisCount,
+                              shrinkWrap: true,
+                              mainAxisSpacing: 12,
+                              crossAxisSpacing: 12,
+                              physics: const NeverScrollableScrollPhysics(),
+                              childAspectRatio: childAspectRatio,
+                              children: [
                             _ActionCard(
-                              title: 'Progress Gallery',
+                              title: langController.t('progress_gallery'),
                               icon: Icons.photo_library_outlined,
                               onTap: () {
-                                Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (_) => const OwnerGalleryScreen(),
-                                  ),
+                                // TODO: Navigate to gallery when implemented
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(content: Text('Gallery coming soon')),
                                 );
                               },
                             ),
                             _ActionCard(
-                              title: 'Billing & GST Invoices',
+                              title: langController.t('billing_gst_invoices'),
                               icon: Icons.receipt_long_outlined,
                               onTap: () {
-                                Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (_) => const OwnerInvoicesScreen(),
-                                  ),
+                                // TODO: Navigate to invoices when implemented
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(content: Text('Invoices coming soon')),
                                 );
                               },
                             ),
                             _ActionCard(
-                              title: 'Plot Planning',
+                              title: langController.t('plot_planning'),
                               icon: Icons.architecture,
                               onTap: () {
                                 Navigator.push(
@@ -224,23 +702,29 @@ class _OwnerDashboardState extends State<OwnerDashboard> {
                               },
                             ),
                             _ActionCard(
-                              title: 'Project Status Dashboard',
+                              title: langController.t('project_status_dashboard'),
                               icon: Icons.space_dashboard_outlined,
-                              onTap: () => _openPlaceholder(
-                                context,
-                                'Project Status Dashboard',
-                              ),
+                              onTap: () {
+                                // TODO: Navigate to project status when implemented
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(content: Text('Project status coming soon')),
+                                );
+                              },
                             ),
                             _ActionCard(
-                              title: 'Direct Communication',
+                              title: langController.t('direct_communication'),
                               icon: Icons.chat_bubble_outline,
-                              onTap: () => _openPlaceholder(
-                                context,
-                                'Direct Communication',
-                              ),
+                              onTap: () {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (_) => const DirectCommunicationScreen(),
+                                  ),
+                                );
+                              },
                             ),
                             _ActionCard(
-                              title: 'Milestones',
+                              title: langController.t('milestones'),
                               icon: Icons.timeline_outlined,
                               onTap: () {
                                 Navigator.push(
@@ -252,7 +736,9 @@ class _OwnerDashboardState extends State<OwnerDashboard> {
                               },
                             ),
                           ],
-                        ),
+                        );
+                      },
+                    ),
                       ],
                     ),
                   ),
@@ -261,15 +747,64 @@ class _OwnerDashboardState extends State<OwnerDashboard> {
             ),
           ),
         ],
-      ),
-      bottomNavigationBar: const _GlassBottomNav(currentIndex: 0),
-    );
+      );
+    }
   }
+}
 
-  void _openPlaceholder(BuildContext context, String title) {
-    Navigator.of(
-      context,
-    ).push(MaterialPageRoute(builder: (_) => _Placeholder(title: title)));
+class _SocialTab extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      children: [
+        // Background gradient
+        Container(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                const Color(0xFF136DEC).withValues(alpha: 0.12),
+                const Color(0xFF7A5AF8).withValues(alpha: 0.10),
+                Colors.white,
+              ],
+              stops: const [0.0, 0.45, 1.0],
+            ),
+          ),
+        ),
+
+        SafeArea(
+          child: Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(
+                  Icons.people_rounded,
+                  size: 64,
+                  color: Color(0xFF9CA3AF),
+                ),
+                const SizedBox(height: 16),
+                const Text(
+                  'Social Features',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w600,
+                    color: Color(0xFF1F2937),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                const Text(
+                  'Coming soon',
+                  style: TextStyle(
+                    color: Color(0xFF6B7280),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
   }
 }
 
@@ -324,7 +859,7 @@ class _StatCard extends StatelessWidget {
                     ),
                   ],
                 ),
-                child: Icon(icon, color: Colors.white),
+                child: Icon(icon, color: Colors.white, size: 20),
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -332,13 +867,19 @@ class _StatCard extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
+                    // FIX: Added proper text overflow handling and consistent font weight
                     Text(
                       title,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
                         fontSize: 12,
+                        fontWeight: FontWeight.w500, // Consistent font weight
                         color: Color(0xFF4A4A4A),
+                        height: 1.2, // Better line height for readability
                       ),
                     ),
+                    const SizedBox(height: 2),
                     TweenAnimationBuilder<double>(
                       tween: Tween(begin: 0, end: 1),
                       duration: const Duration(milliseconds: 900),
@@ -347,9 +888,11 @@ class _StatCard extends StatelessWidget {
                         opacity: t,
                         child: Text(
                           value,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                           style: const TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.w800,
+                            fontSize: 16, // Slightly smaller for better fit
+                            fontWeight: FontWeight.w700, // Consistent font weight
                             color: Color(0xFF1F1F1F),
                           ),
                         ),
@@ -439,15 +982,22 @@ class _ActionCardState extends State<_ActionCard> {
                         ),
                       ],
                     ),
-                    child: Icon(widget.icon, color: Colors.white),
+                    child: Icon(widget.icon, color: Colors.white, size: 24),
                   ),
                   const SizedBox(height: 12),
-                  Text(
-                    widget.title,
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(
-                      fontWeight: FontWeight.w800,
-                      color: Color(0xFF1F2937),
+                  // FIX: Improved text handling with proper constraints and overflow
+                  Flexible(
+                    child: Text(
+                      widget.title,
+                      textAlign: TextAlign.center,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600, // Consistent font weight
+                        color: Color(0xFF1F2937),
+                        height: 1.3, // Better line height for multi-line text
+                      ),
                     ),
                   ),
                 ],
@@ -462,10 +1012,17 @@ class _ActionCardState extends State<_ActionCard> {
 
 class _GlassBottomNav extends StatelessWidget {
   final int currentIndex;
-  const _GlassBottomNav({required this.currentIndex});
+  final Function(int) onTap;
+  
+  const _GlassBottomNav({
+    required this.currentIndex,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
+    final langController = LanguageController();
+    
     return ClipRRect(
       child: BackdropFilter(
         filter: ui.ImageFilter.blur(sigmaX: 18, sigmaY: 18),
@@ -486,28 +1043,61 @@ class _GlassBottomNav extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              _navItem(
-                icon: Icons.home_rounded,
-                label: 'Dashboard',
-                active: currentIndex == 0,
-              ),
-              _navItem(
-                icon: Icons.photo_library_rounded,
-                label: 'Gallery',
-                active: currentIndex == 1,
-              ),
-              _navItem(
-                icon: Icons.receipt_long_rounded,
-                label: 'Invoices',
-                active: currentIndex == 2,
-              ),
-              _navItem(
-                icon: Icons.person_rounded,
-                label: 'Profile',
-                active: currentIndex == 3,
-              ),
-            ],
+            children: ProjectContext.activeProjectId == null 
+              ? [
+                  // STATE 1: NEW OWNER / NO PROJECT SELECTED - Show only 3 icons
+                  _navItem(
+                    icon: Icons.home_rounded,
+                    label: langController.t('dashboard'),
+                    active: currentIndex == 0,
+                    onTap: () => onTap(0),
+                  ),
+                  _navItem(
+                    icon: Icons.people_rounded,
+                    label: 'Social',
+                    active: currentIndex == 1,
+                    onTap: () => onTap(1),
+                  ),
+                  _navItem(
+                    icon: Icons.person_rounded,
+                    label: langController.t('profile'),
+                    active: currentIndex == 4,
+                    onTap: () => onTap(4),
+                  ),
+                ]
+              : [
+                  // STATE 2: OWNER INSIDE A PROJECT - Show full footer
+                  _navItem(
+                    icon: Icons.home_rounded,
+                    label: langController.t('dashboard'),
+                    active: currentIndex == 0,
+                    onTap: () => onTap(0),
+                  ),
+                  _navItem(
+                    icon: Icons.photo_library_rounded,
+                    label: langController.t('gallery'),
+                    active: currentIndex == 1,
+                    onTap: () => onTap(1),
+                  ),
+                  _navItem(
+                    icon: Icons.receipt_long_rounded,
+                    label: langController.t('invoices'),
+                    active: currentIndex == 2,
+                    onTap: () => onTap(2),
+                  ),
+                  _navItem(
+                    icon: Icons.folder_open_rounded,
+                    label: 'Projects',
+                    active: currentIndex == 3,
+                    onTap: () => onTap(3),
+                  ),
+                  _navItem(
+                    icon: Icons.person_rounded,
+                    label: langController.t('profile'),
+                    active: currentIndex == 4,
+                    onTap: () => onTap(4),
+                  ),
+                ],
           ),
         ),
       ),
@@ -518,40 +1108,187 @@ class _GlassBottomNav extends StatelessWidget {
     required IconData icon,
     required String label,
     required bool active,
+    required VoidCallback onTap,
   }) {
     final Color c = active ? const Color(0xFF111827) : const Color(0xFF6B7280);
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Icon(icon, color: c),
-        const SizedBox(height: 2),
-        Text(
-          label,
-          style: TextStyle(
-            color: c,
-            fontSize: 11,
-            fontWeight: active ? FontWeight.w700 : FontWeight.w500,
-          ),
+    return GestureDetector(
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2), // Better touch target
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, color: c, size: 22), // Consistent icon size
+            const SizedBox(height: 4),
+            Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                color: c,
+                fontSize: 11,
+                fontWeight: active ? FontWeight.w600 : FontWeight.w500, // Consistent font weights
+                letterSpacing: 0.2, // Better letter spacing
+              ),
+            ),
+          ],
         ),
-      ],
+      ),
     );
   }
 }
 
-class _Placeholder extends StatelessWidget {
-  final String title;
-  const _Placeholder({required this.title});
+/// Owner Projects Screen - shows projects where owner can approve
+class OwnerProjectsScreen extends StatelessWidget {
+  const OwnerProjectsScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: Text(title)),
-      body: Center(
-        child: Text(
-          '$title screen coming soon...',
-          style: Theme.of(context).textTheme.titleLarge,
+    return Stack(
+      children: [
+        // Background gradient
+        Container(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                const Color(0xFF136DEC).withValues(alpha: 0.12),
+                const Color(0xFF7A5AF8).withValues(alpha: 0.10),
+                Colors.white,
+              ],
+              stops: const [0.0, 0.45, 1.0],
+            ),
+          ),
         ),
-      ),
+
+        SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Project Selection',
+                  style: TextStyle(
+                    fontSize: 24,
+                    fontWeight: FontWeight.w800,
+                    color: Color(0xFF1F1F1F),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                const Text(
+                  'Select a project to access owner features',
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: Color(0xFF6B7280),
+                  ),
+                ),
+                const SizedBox(height: 20),
+                
+                Expanded(
+                  child: StreamBuilder<List<ProjectModel>>(
+                    stream: RealTimeProjectService.getOwnerProjects(),
+                    builder: (context, snapshot) {
+                      if (snapshot.connectionState == ConnectionState.waiting) {
+                        return const Center(
+                          child: CircularProgressIndicator(
+                            valueColor: AlwaysStoppedAnimation<Color>(
+                              Color(0xFF136DEC),
+                            ),
+                          ),
+                        );
+                      }
+
+                      if (snapshot.hasError) {
+                        return Center(
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              const Icon(
+                                Icons.error_outline,
+                                size: 64,
+                                color: Color(0xFFEF4444),
+                              ),
+                              const SizedBox(height: 16),
+                              const Text(
+                                'Error loading projects',
+                                style: TextStyle(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.w600,
+                                  color: Color(0xFF1F2937),
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              Text(
+                                snapshot.error.toString(),
+                                textAlign: TextAlign.center,
+                                style: const TextStyle(
+                                  color: Color(0xFF6B7280),
+                                ),
+                              ),
+                            ],
+                          ),
+                        );
+                      }
+
+                      final projects = snapshot.data ?? [];
+
+                      if (projects.isEmpty) {
+                        return Center(
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              const Icon(
+                                Icons.folder_open,
+                                size: 64,
+                                color: Color(0xFF9CA3AF),
+                              ),
+                              const SizedBox(height: 16),
+                              const Text(
+                                'No Projects Assigned',
+                                style: TextStyle(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.w600,
+                                  color: Color(0xFF1F2937),
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              const Text(
+                                'Wait for engineers to assign you to projects',
+                                style: TextStyle(
+                                  color: Color(0xFF6B7280),
+                                ),
+                              ),
+                            ],
+                          ),
+                        );
+                      }
+
+                      return ListView.builder(
+                        itemCount: projects.length,
+                        itemBuilder: (context, index) {
+                          final project = projects[index];
+                          return OwnerProjectCard(
+                            project: project,
+                            onTap: () {
+                              // Set active project and navigate to dashboard with features
+                              ProjectContext.setActiveProject(project.id, project.projectName);
+                              Navigator.of(context).pushReplacement(
+                                MaterialPageRoute(builder: (_) => OwnerDashboard()),
+                              );
+                            },
+                          );
+                        },
+                      );
+                    },
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
     );
   }
 }
