@@ -15,11 +15,12 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'common/localization/app_language_controller.dart';
 import 'common/localization/language_controller.dart';
 import 'common/screens/language_selection_screen.dart';
-import 'package:untitled3/common/widgets/animated_get_started_button.dart';
 import 'common/project_context.dart';
-
-
-enum Role { fieldManager, projectEngineer, ownerClient }
+import 'models/offline_dpr_model.dart';
+import 'common/services/connectivity_service.dart';
+import 'config/cloudinary_config.dart';
+import 'auth/login_screen.dart';
+import 'auth/register_screen.dart';
 
 /// Generate public ID in format: (first 4 letters of name, lowercase) + (4 random digits)
 /// Example: "Shashikanth" -> "shas4821"
@@ -39,7 +40,14 @@ void main() async {
 
   // Initialize Hive
   await Hive.initFlutter();
+  
+  // Register OfflineDprModel adapter
+  if (!Hive.isAdapterRegistered(10)) {
+    Hive.registerAdapter(OfflineDprModelAdapter());
+  }
+  
   await Hive.openBox('offline_dprs');
+  await Hive.openBox<OfflineDprModel>('offline_dpr_models');
   await Hive.openBox('offline_material_requests');
 
   // Milestones box (local-first)
@@ -53,6 +61,20 @@ void main() async {
 
   // Initialize Offline Sync Service
   await OfflineSyncService().init();
+
+  // Initialize Connectivity Service
+  await ConnectivityService().initialize();
+
+  // Validate Cloudinary Configuration
+  assert(
+    CloudinaryConfig.cloudName.isNotEmpty,
+    "Cloudinary cloudName missing",
+  );
+  assert(
+    CloudinaryConfig.uploadPreset.isNotEmpty,
+    "Cloudinary uploadPreset missing",
+  );
+  print("Cloudinary configured: ${CloudinaryConfig.cloudName}");
 
   // Initialize Language Controller
   // This loads the saved language preference from Hive
@@ -155,17 +177,17 @@ class _AuthWrapperState extends State<AuthWrapper> {
           final role = userDoc.data()?['role'];
           
           // Navigate to appropriate dashboard based on role
-          if (role == 'fieldManager') {
+          if (role == 'manager' || role == 'fieldManager') {
             setState(() {
               _homeWidget = const FieldManagerDashboard();
               _isLoading = false;
             });
-          } else if (role == 'projectEngineer') {
+          } else if (role == 'engineer' || role == 'projectEngineer') {
             setState(() {
               _homeWidget = const EngineerDashboard();
               _isLoading = false;
             });
-          } else if (role == 'ownerClient') {
+          } else if (role == 'owner' || role == 'ownerClient') {
             setState(() {
               _homeWidget = const OwnerDashboard();
               _isLoading = false;
@@ -600,10 +622,14 @@ class RoleSelectionScreen extends StatelessWidget {
                                 .collection('users')
                                 .doc(user.uid)
                                 .set({
-                                  'role': 'fieldManager',
+                                  'role': 'manager', // Updated role name
                                   'email': user.email,
                                   'fullName': user.displayName,
+                                  'profilePhotoUrl': user.photoURL ?? '',
+                                  'profileCompletion': 100,
+                                  'isActive': true,
                                   'createdAt': FieldValue.serverTimestamp(),
+                                  'lastUpdatedAt': FieldValue.serverTimestamp(),
                                 }, SetOptions(merge: true));
                             if (!context.mounted) return;
                             Navigator.of(context).pushReplacement(
@@ -615,8 +641,8 @@ class RoleSelectionScreen extends StatelessWidget {
                             // Not logged in, go to login screen
                             Navigator.of(context).push(
                               MaterialPageRoute(
-                                builder: (_) => LoginScreen(
-                                  selectedRole: Role.fieldManager,
+                                builder: (_) => const LoginScreen(
+                                  selectedRole: 'manager',
                                 ),
                               ),
                             );
@@ -638,10 +664,14 @@ class RoleSelectionScreen extends StatelessWidget {
                                 .collection('users')
                                 .doc(user.uid)
                                 .set({
-                                  'role': 'projectEngineer',
+                                  'role': 'engineer', // Updated role name
                                   'email': user.email,
                                   'fullName': user.displayName,
+                                  'profilePhotoUrl': user.photoURL ?? '',
+                                  'profileCompletion': 100,
+                                  'isActive': true,
                                   'createdAt': FieldValue.serverTimestamp(),
+                                  'lastUpdatedAt': FieldValue.serverTimestamp(),
                                 }, SetOptions(merge: true));
                             if (!context.mounted) return;
                             Navigator.of(context).pushReplacement(
@@ -653,8 +683,8 @@ class RoleSelectionScreen extends StatelessWidget {
                             // Not logged in, go to login screen
                             Navigator.of(context).push(
                               MaterialPageRoute(
-                                builder: (_) => LoginScreen(
-                                  selectedRole: Role.projectEngineer,
+                                builder: (_) => const LoginScreen(
+                                  selectedRole: 'engineer',
                                 ),
                               ),
                             );
@@ -676,10 +706,14 @@ class RoleSelectionScreen extends StatelessWidget {
                                 .collection('users')
                                 .doc(user.uid)
                                 .set({
-                                  'role': 'ownerClient',
+                                  'role': 'owner', // Updated role name
                                   'email': user.email,
                                   'fullName': user.displayName,
+                                  'profilePhotoUrl': user.photoURL ?? '',
+                                  'profileCompletion': 100,
+                                  'isActive': true,
                                   'createdAt': FieldValue.serverTimestamp(),
+                                  'lastUpdatedAt': FieldValue.serverTimestamp(),
                                 }, SetOptions(merge: true));
                             if (!context.mounted) return;
                             Navigator.of(context).pushReplacement(
@@ -691,8 +725,9 @@ class RoleSelectionScreen extends StatelessWidget {
                             // Not logged in, go to login screen
                             Navigator.of(context).push(
                               MaterialPageRoute(
-                                builder: (_) =>
-                                    LoginScreen(selectedRole: Role.ownerClient),
+                                builder: (_) => const LoginScreen(
+                                  selectedRole: 'owner',
+                                ),
                               ),
                             );
                           }
@@ -997,7 +1032,7 @@ class _LabeledField extends StatelessWidget {
 
 // Login Screen
 class LoginScreen extends StatefulWidget {
-  final Role selectedRole;
+  final String selectedRole;
   const LoginScreen({super.key, required this.selectedRole});
 
   @override
@@ -1459,7 +1494,7 @@ class _LoginScreenState extends State<LoginScreen> {
                         onPressed: () {
                           Navigator.of(context).push(
                             MaterialPageRoute(
-                              builder: (_) => SignupScreen(
+                              builder: (_) => RegisterScreen(
                                 selectedRole: widget.selectedRole,
                               ),
                             ),
@@ -1608,7 +1643,7 @@ class _GlassActionButton extends StatelessWidget {
 }
 
 class ForgotPasswordScreen extends StatefulWidget {
-  final Role selectedRole;
+  final String selectedRole;
   const ForgotPasswordScreen({super.key, required this.selectedRole});
 
   @override
@@ -2295,447 +2330,13 @@ class _GlassStatCardState extends State<_GlassStatCard> {
 }
 
 */
-class RoleDashboardScreen extends StatelessWidget {
-  final Role role;
-  const RoleDashboardScreen({super.key, required this.role});
 
-  String get title {
-    switch (role) {
-      case Role.fieldManager:
-        return 'Field Manager Dashboard';
-      case Role.projectEngineer:
-        return 'Project Engineer Dashboard';
-      case Role.ownerClient:
-        return 'Owner / Client Dashboard';
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: Text(title)),
-      body: Center(
-        child: Text(title, style: Theme.of(context).textTheme.titleLarge),
-      ),
-    );
-  }
-}
-
-class SignupScreen extends StatefulWidget {
-  final Role selectedRole;
-  const SignupScreen({super.key, required this.selectedRole});
-
-  @override
-  State<SignupScreen> createState() => _SignupScreenState();
-}
-
-class _SignupScreenState extends State<SignupScreen> {
-  final _formKey = GlobalKey<FormState>();
-  final _nameController = TextEditingController();
-  final _emailController = TextEditingController();
-  final _passwordController = TextEditingController();
-  final _confirmController = TextEditingController();
-  final _authService = AuthService();
-  bool _obscure1 = true;
-  bool _obscure2 = true;
-  bool _agreed = false;
-  bool _isLoading = false;
-
-  static const Color primary = Color(0xFF136DEC);
-  static const Color accent = Color(0xFF7A5AF8);
-
-  @override
-  void dispose() {
-    _nameController.dispose();
-    _emailController.dispose();
-    _passwordController.dispose();
-    _confirmController.dispose();
-    super.dispose();
-  }
-
-  // Create account with email and password
-  Future<void> _createAccount() async {
-    setState(() => _isLoading = true);
-
-    try {
-      // Create user with email and password
-      final userCredential = await FirebaseAuth.instance.createUserWithEmailAndPassword(
-        email: _emailController.text.trim(),
-        password: _passwordController.text,
-      );
-      final user = userCredential.user;
-
-      if (user != null) {
-        // Generate public ID
-        final publicId = generatePublicId(_nameController.text.trim());
-        
-        // Store user data in Firestore with role and public ID
-        await FirebaseFirestore.instance.collection('users').doc(user.uid).set({
-          'fullName': _nameController.text.trim(),
-          'email': _emailController.text.trim(),
-          'role': widget.selectedRole == Role.fieldManager
-              ? 'fieldManager'
-              : widget.selectedRole == Role.projectEngineer
-                  ? 'projectEngineer'
-                  : 'ownerClient',
-          'publicId': publicId,
-          'createdAt': FieldValue.serverTimestamp(),
-        });
-
-        setState(() => _isLoading = false);
-
-        // Navigate to role-based dashboard
-        final role = widget.selectedRole == Role.fieldManager
-            ? 'fieldManager'
-            : widget.selectedRole == Role.projectEngineer
-                ? 'projectEngineer'
-                : 'ownerClient';
-
-        if (!mounted) return;
-        if (role == 'fieldManager') {
-          Navigator.of(context).pushAndRemoveUntil(
-            MaterialPageRoute(builder: (_) => const FieldManagerDashboard()),
-            (route) => false,
-          );
-        } else if (role == 'projectEngineer') {
-          Navigator.of(context).pushAndRemoveUntil(
-            MaterialPageRoute(builder: (_) => const EngineerDashboard()),
-            (route) => false,
-          );
-        } else if (role == 'ownerClient') {
-          Navigator.of(context).pushAndRemoveUntil(
-            MaterialPageRoute(builder: (_) => const OwnerDashboard()),
-            (route) => false,
-          );
-        }
-      }
-    } catch (e) {
-      setState(() => _isLoading = false);
-      String errorMessage = 'Account creation failed. Please try again.';
-      if (e is FirebaseAuthException) {
-        if (e.code == 'email-already-in-use') {
-          errorMessage = 'An account with this email already exists.';
-        } else if (e.code == 'weak-password') {
-          errorMessage = 'Password is too weak. Use at least 6 characters.';
-        } else if (e.code == 'invalid-email') {
-          errorMessage = 'Invalid email address.';
-        } else {
-          errorMessage = 'Account creation failed. Please try again.';
-        }
-      }
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(errorMessage), backgroundColor: Colors.red),
-      );
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Scaffold(
-      body: Stack(
-        children: [
-          Container(
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [
-                  primary.withValues(alpha: 0.12),
-                  accent.withValues(alpha: 0.10),
-                  Colors.white,
-                ],
-                stops: const [0.0, 0.45, 1.0],
-              ),
-            ),
-          ),
-          Positioned(
-            top: -80,
-            left: -60,
-            child: _GlowBlob(color: primary.withValues(alpha: 0.28), size: 200),
-          ),
-          Positioned(
-            bottom: -70,
-            right: -40,
-            child: _GlowBlob(color: accent.withValues(alpha: 0.26), size: 190),
-          ),
-
-          SafeArea(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  const SizedBox(height: 8),
-                  // Top: logo + title + subtitle
-                  Column(
-                    children: [
-                      Container(
-                        height: 64,
-                        width: 64,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          gradient: const LinearGradient(
-                            colors: [primary, accent],
-                            begin: Alignment.topLeft,
-                            end: Alignment.bottomRight,
-                          ),
-                          boxShadow: [
-                            BoxShadow(
-                              color: primary.withValues(alpha: 0.35),
-                              blurRadius: 24,
-                              spreadRadius: 2,
-                            ),
-                          ],
-                        ),
-                        child: const Icon(
-                          Icons.engineering,
-                          color: Colors.white,
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                      Text(
-                        'Niramana Setu',
-                        style: theme.textTheme.headlineSmall?.copyWith(
-                          fontWeight: FontWeight.w800,
-                          color: const Color(0xFF1F1F1F),
-                          letterSpacing: 0.2,
-                        ),
-                      ),
-                      const SizedBox(height: 6),
-                      Text(
-                        'Create your account to get started',
-                        style: theme.textTheme.bodyLarge?.copyWith(
-                          color: const Color(0xFF5C5C5C),
-                          letterSpacing: 0.1,
-                        ),
-                      ),
-                    ],
-                  ),
-
-                  const SizedBox(height: 18),
-
-                  // Floating Signup Card
-                  Center(
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(24),
-                      child: BackdropFilter(
-                        filter: ui.ImageFilter.blur(sigmaX: 18, sigmaY: 18),
-                        child: Container(
-                          constraints: const BoxConstraints(maxWidth: 560),
-                          decoration: BoxDecoration(
-                            color: Colors.white.withValues(alpha: 0.55),
-                            borderRadius: BorderRadius.circular(24),
-                            border: Border.all(
-                              color: Colors.white.withValues(alpha: 0.4),
-                              width: 1.2,
-                            ),
-                            boxShadow: [
-                              BoxShadow(
-                                color: primary.withValues(alpha: 0.20),
-                                blurRadius: 30,
-                                spreadRadius: 2,
-                                offset: const Offset(0, 18),
-                              ),
-                              BoxShadow(
-                                color: Colors.black.withValues(alpha: 0.06),
-                                blurRadius: 18,
-                                offset: const Offset(0, 8),
-                              ),
-                            ],
-                          ),
-                          padding: const EdgeInsets.fromLTRB(18, 18, 18, 20),
-                          child: Form(
-                            key: _formKey,
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.stretch,
-                              children: [
-                                _glassField(
-                                  controller: _nameController,
-                                  hint: 'Full name',
-                                  icon: Icons.person_outline,
-                                  validator: (v) =>
-                                      (v == null || v.trim().length < 2)
-                                      ? 'Enter your full name'
-                                      : null,
-                                ),
-                                const SizedBox(height: 12),
-                                _glassField(
-                                  controller: _emailController,
-                                  hint: 'Email',
-                                  icon: Icons.alternate_email,
-                                  keyboardType: TextInputType.emailAddress,
-                                  validator: (v) =>
-                                      (v == null || v.trim().isEmpty)
-                                      ? 'Enter email'
-                                      : null,
-                                ),
-                                const SizedBox(height: 12),
-                                _glassField(
-                                  controller: _passwordController,
-                                  hint: 'Password',
-                                  icon: Icons.lock_outline,
-                                  obscure: _obscure1,
-                                  suffix: IconButton(
-                                    icon: Icon(
-                                      _obscure1
-                                          ? Icons.visibility_off
-                                          : Icons.visibility,
-                                      color: const Color(0xFF8E8E8E),
-                                    ),
-                                    onPressed: () =>
-                                        setState(() => _obscure1 = !_obscure1),
-                                  ),
-                                  validator: (v) {
-                                    if (v == null || v.isEmpty)
-                                      return 'Enter password';
-                                    if (v.length < 6)
-                                      return 'Must be at least 6 characters';
-                                    return null;
-                                  },
-                                ),
-                                const SizedBox(height: 12),
-                                _glassField(
-                                  controller: _confirmController,
-                                  hint: 'Confirm password',
-                                  icon: Icons.lock_outline,
-                                  obscure: _obscure2,
-                                  suffix: IconButton(
-                                    icon: Icon(
-                                      _obscure2
-                                          ? Icons.visibility_off
-                                          : Icons.visibility,
-                                      color: const Color(0xFF8E8E8E),
-                                    ),
-                                    onPressed: () =>
-                                        setState(() => _obscure2 = !_obscure2),
-                                  ),
-                                  validator: (v) {
-                                    if (v != _passwordController.text)
-                                      return 'Passwords do not match';
-                                    return null;
-                                  },
-                                ),
-                                const SizedBox(height: 12),
-                                Row(
-                                  children: [
-                                    Checkbox(
-                                      value: _agreed,
-                                      onChanged: (v) =>
-                                          setState(() => _agreed = v ?? false),
-                                      shape: RoundedRectangleBorder(
-                                        borderRadius: BorderRadius.circular(4),
-                                      ),
-                                    ),
-                                    const Expanded(
-                                      child: Text(
-                                        'I agree to Terms & Privacy Policy',
-                                        style: TextStyle(
-                                          color: Color(0xFF3F3F3F),
-                                        ),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                                const SizedBox(height: 6),
-                                _GlowingButton(
-                                  text: _isLoading ? 'Please wait...' : 'Create Account',
-                                  onTap: _isLoading
-                                      ? () {}
-                                      : () {
-                                          if ((_formKey.currentState?.validate() ?? false) && _agreed) {
-                                            _createAccount();
-                                          } else if (!_agreed) {
-                                            ScaffoldMessenger.of(context).showSnackBar(
-                                              const SnackBar(
-                                                content: Text('Please accept the Terms & Privacy Policy'),
-                                                backgroundColor: Colors.red,
-                                              ),
-                                            );
-                                          }
-                                        },
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-
-                  const SizedBox(height: 18),
-
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      const Text('Already have an account? '),
-                      TextButton(
-                        onPressed: () => Navigator.of(context).pop(),
-                        style: TextButton.styleFrom(
-                          foregroundColor: const Color(0xFF4B4B4B),
-                        ),
-                        child: const Text('Log in'),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _glassField({
-    required TextEditingController controller,
-    required String hint,
-    required IconData icon,
-    TextInputType? keyboardType,
-    String? Function(String?)? validator,
-    bool obscure = false,
-    Widget? suffix,
-    bool enabled = true,
-  }) {
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.6),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.5)),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.04),
-            blurRadius: 12,
-            offset: const Offset(0, 6),
-          ),
-        ],
-      ),
-      child: TextFormField(
-        controller: controller,
-        obscureText: obscure,
-        keyboardType: keyboardType,
-        validator: validator,
-        enabled: enabled,
-        decoration: InputDecoration(
-          prefixIcon: Icon(icon, color: const Color(0xFF7B7B7B)),
-          suffixIcon: suffix,
-          hintText: hint,
-          border: InputBorder.none,
-          contentPadding: const EdgeInsets.symmetric(
-            vertical: 16,
-            horizontal: 12,
-          ),
-        ),
-      ),
-    );
-  }
-}
-
+// Missing UI components that were removed with SignupScreen
 class _GlowingButton extends StatelessWidget {
   final String text;
-  final VoidCallback onTap;
-  const _GlowingButton({required this.text, required this.onTap});
+  final VoidCallback? onTap;
+
+  const _GlowingButton({required this.text, this.onTap});
 
   static const Color primary = Color(0xFF136DEC);
   static const Color accent = Color(0xFF7A5AF8);
@@ -2752,7 +2353,7 @@ class _GlowingButton extends StatelessWidget {
             end: Alignment.bottomRight,
           ),
           borderRadius: BorderRadius.circular(18),
-          boxShadow: [
+          boxShadow: onTap != null ? [
             BoxShadow(
               color: primary.withValues(alpha: 0.45),
               blurRadius: 28,
@@ -2764,14 +2365,14 @@ class _GlowingButton extends StatelessWidget {
               blurRadius: 20,
               offset: const Offset(0, 6),
             ),
-          ],
+          ] : [],
         ),
         padding: const EdgeInsets.symmetric(vertical: 16),
         alignment: Alignment.center,
         child: Text(
           text,
-          style: const TextStyle(
-            color: Colors.white,
+          style: TextStyle(
+            color: onTap != null ? Colors.white : Colors.white.withValues(alpha: 0.6),
             fontWeight: FontWeight.w700,
             fontSize: 16,
             letterSpacing: 0.2,
@@ -2781,3 +2382,5 @@ class _GlowingButton extends StatelessWidget {
     );
   }
 }
+
+

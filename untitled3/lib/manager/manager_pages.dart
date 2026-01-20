@@ -7,11 +7,13 @@ import '../services/dpr_service.dart';
 import '../services/material_request_service.dart';
 import '../services/attendance_service.dart';
 import '../services/project_service.dart';
+import '../services/manager_service.dart';
 import '../models/dpr_model.dart';
 import '../common/models/project_model.dart';
 import '../common/project_context.dart';
 import '../common/widgets/public_id_display.dart';
 import 'manager.dart';
+import 'manager_project_card.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
@@ -122,9 +124,9 @@ class ManagerHomeScreen extends StatelessWidget {
                 ),
                 const SizedBox(height: 16),
                 
-                // Real-time project list from Firestore
-                StreamBuilder<List<ProjectModel>>(
-                  stream: RealTimeProjectService.getManagerProjects(),
+                // Real-time project list from Firestore with acceptance status
+                StreamBuilder<List<ProjectWithAcceptanceStatus>>(
+                  stream: ManagerService.getProjectsWithAcceptanceStatus(),
                   builder: (context, snapshot) {
                     if (snapshot.connectionState == ConnectionState.waiting) {
                       return const Center(
@@ -163,9 +165,9 @@ class ManagerHomeScreen extends StatelessWidget {
                       );
                     }
 
-                    final projects = snapshot.data ?? [];
+                    final projectsWithStatus = snapshot.data ?? [];
 
-                    if (projects.isEmpty) {
+                    if (projectsWithStatus.isEmpty) {
                       return Center(
                         child: Padding(
                           padding: const EdgeInsets.all(32.0),
@@ -199,17 +201,23 @@ class ManagerHomeScreen extends StatelessWidget {
                     }
 
                     return Column(
-                      children: projects.map((project) {
+                      children: projectsWithStatus.map((projectWithStatus) {
                         return Padding(
                           padding: const EdgeInsets.only(bottom: 12),
-                          child: _ProjectCard(
-                            name: project.projectName,
-                            location: 'Location not specified',
-                            start: 'Start date not set',
-                            end: 'End date not set',
-                            progress: 0.0,
-                            status: project.status,
-                            projectId: project.id,
+                          child: ManagerProjectCard(
+                            projectWithStatus: projectWithStatus,
+                            onTap: projectWithStatus.areFeaturesEnabled 
+                                ? () {
+                                    // Set active project and navigate to dashboard with features
+                                    ProjectContext.setActiveProject(
+                                      projectWithStatus.project.id, 
+                                      projectWithStatus.project.projectName
+                                    );
+                                    Navigator.of(context).pushReplacement(
+                                      MaterialPageRoute(builder: (_) => FieldManagerDashboard()),
+                                    );
+                                  }
+                                : null, // Disable tap if features not enabled
                           ),
                         );
                       }).toList(),
@@ -367,53 +375,116 @@ class ManagerHomeScreen extends StatelessWidget {
                 const _HomeStatsRow(),
                 const SizedBox(height: 16),
                 
-                // Feature Grid (project-scoped)
-                GridView.count(
-                  crossAxisCount: 2,
-                  shrinkWrap: true,
-                  mainAxisSpacing: 12,
-                  crossAxisSpacing: 12,
-                  physics: const NeverScrollableScrollPhysics(),
-                  childAspectRatio: 1.05,
-                  children: [
-                    _FeatureCard(
-                      title: 'Material Requests',
-                      icon: Icons.inventory_2_rounded,
-                      onTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(builder: (_) => const MaterialRequestScreen()),
-                        );
-                      },
-                    ),
-                    _FeatureCard(
-                      title: 'Attendance',
-                      icon: Icons.how_to_reg_rounded,
-                      onTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(builder: (_) => const AttendanceScreen()),
-                        );
-                      },
-                    ),
-                    _FeatureCard(
-                      title: 'Daily Progress',
-                      icon: Icons.assignment_outlined,
-                      onTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(builder: (_) => const DPRFormScreen()),
-                        );
-                      },
-                    ),
-                    _FeatureCard(
-                      title: 'Worker Count',
-                      icon: Icons.groups,
-                      onTap: () {
-                        // TODO: Navigate to worker count screen
-                      },
-                    ),
-                  ],
+                // Feature Grid (project-scoped with acceptance gating)
+                FutureBuilder<bool>(
+                  future: ManagerService.canAccessProjectFeatures(ProjectContext.activeProjectId!),
+                  builder: (context, accessSnapshot) {
+                    final canAccessFeatures = accessSnapshot.data ?? false;
+                    
+                    if (!canAccessFeatures) {
+                      // Show locked features message
+                      return Container(
+                        padding: const EdgeInsets.all(24),
+                        decoration: BoxDecoration(
+                          color: Colors.orange.withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(
+                            color: Colors.orange.withValues(alpha: 0.3),
+                          ),
+                        ),
+                        child: Column(
+                          children: [
+                            Icon(
+                              Icons.lock_outline,
+                              size: 48,
+                              color: Colors.orange.shade700,
+                            ),
+                            const SizedBox(height: 12),
+                            Text(
+                              'Features Locked',
+                              style: TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.orange.shade800,
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              'You need to accept this project to access manager features',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                color: Colors.orange.shade700,
+                              ),
+                            ),
+                            const SizedBox(height: 16),
+                            ElevatedButton(
+                              onPressed: () {
+                                // Navigate back to project list
+                                ProjectContext.clearActiveProject();
+                                Navigator.of(context).pushReplacement(
+                                  MaterialPageRoute(builder: (_) => FieldManagerDashboard()),
+                                );
+                              },
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Colors.orange.shade600,
+                                foregroundColor: Colors.white,
+                              ),
+                              child: const Text('Back to Projects'),
+                            ),
+                          ],
+                        ),
+                      );
+                    }
+                    
+                    // Show enabled feature grid
+                    return GridView.count(
+                      crossAxisCount: 2,
+                      shrinkWrap: true,
+                      mainAxisSpacing: 12,
+                      crossAxisSpacing: 12,
+                      physics: const NeverScrollableScrollPhysics(),
+                      childAspectRatio: 1.05,
+                      children: [
+                        _FeatureCard(
+                          title: 'Material Requests',
+                          icon: Icons.inventory_2_rounded,
+                          onTap: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(builder: (_) => const MaterialRequestScreen()),
+                            );
+                          },
+                        ),
+                        _FeatureCard(
+                          title: 'Attendance',
+                          icon: Icons.how_to_reg_rounded,
+                          onTap: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(builder: (_) => const AttendanceScreen()),
+                            );
+                          },
+                        ),
+                        _FeatureCard(
+                          title: 'Daily Progress',
+                          icon: Icons.assignment_outlined,
+                          onTap: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(builder: (_) => const DPRFormScreen()),
+                            );
+                          },
+                        ),
+                        _FeatureCard(
+                          title: 'Worker Count',
+                          icon: Icons.groups,
+                          onTap: () {
+                            // TODO: Navigate to worker count screen
+                          },
+                        ),
+                      ],
+                    );
+                  },
                 ),
               ],
             ),

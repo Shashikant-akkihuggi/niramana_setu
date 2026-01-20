@@ -2,6 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../services/offline_sync_service.dart';
 import 'dart:ui' as ui;
+import 'package:image_picker/image_picker.dart';
+import 'dart:io';
+import 'package:connectivity_plus/connectivity_plus.dart';
+import '../services/cloudinary_service.dart';
+import '../services/image_compression_service.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 class _ThemeFM {
   static const Color primary = Color(0xFF136DEC);
@@ -21,7 +27,8 @@ class _DPRFormScreenState extends State<DPRFormScreen> {
   final _materialsUsedController = TextEditingController();
   final _workersPresentController = TextEditingController();
 
-  final List<ImageProvider> _images = [];
+  final ImagePicker _picker = ImagePicker();
+  final List<XFile> _selectedImages = [];
   bool _isLoading = false;
 
   @override
@@ -32,24 +39,48 @@ class _DPRFormScreenState extends State<DPRFormScreen> {
     super.dispose();
   }
 
-  Future<void> _pickImages() async {
-    // NOTE: This is a mock image picker to keep dependencies minimal.
-    // Replace with image_picker or file_picker in later integration.
-    if (_images.length >= 5) {
+  Future<void> _onAddPhotoPressed() async {
+    debugPrint('Add Photo pressed');
+    
+    if (_selectedImages.length >= 5) {
+      debugPrint('Maximum photo limit reached');
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('You can select up to 5 images')),
       );
       return;
     }
-    setState(() {
-      // Add placeholder thumbnails to simulate image selection
-      _images.add(const AssetImage('assets/placeholder.png'));
-    });
+
+    try {
+      final XFile? photo = await _picker.pickImage(
+        source: ImageSource.camera,
+        imageQuality: 85,
+      );
+
+      if (photo == null) {
+        debugPrint('Camera cancelled by user');
+        return;
+      }
+
+      setState(() {
+        _selectedImages.add(photo);
+      });
+
+      debugPrint('Photo added. Total: ${_selectedImages.length}');
+    } catch (e, st) {
+      debugPrint('Camera error: $e');
+      debugPrint('$st');
+      
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error accessing camera: $e')),
+        );
+      }
+    }
   }
 
   Future<void> _submit() async {
     if (!(_formKey.currentState?.validate() ?? false)) return;
-    if (_images.length < 2) {
+    if (_selectedImages.length < 2) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Please upload at least 2 photos')),
       );
@@ -57,57 +88,115 @@ class _DPRFormScreenState extends State<DPRFormScreen> {
     }
 
     setState(() => _isLoading = true);
+    debugPrint('DPR Submit: Starting submission process with ${_selectedImages.length} images...');
 
+    try {
+      // Step 1: Check connectivity
+      final connectivityResults = await Connectivity().checkConnectivity();
+      final hasInternet = connectivityResults.any((result) => result != ConnectivityResult.none);
+      
+      if (!hasInternet) {
+        debugPrint('DPR Submit: No internet connection - saving offline');
+        await _submitOffline();
+        return;
+      }
+
+      // Step 2: Compress images in background (don't block UI)
+      debugPrint('DPR Submit: Compressing images in background...');
+      final imageFiles = _selectedImages.map((xFile) => File(xFile.path)).toList();
+      final compressedFiles = await ImageCompressionService.compressMultipleImages(imageFiles);
+      
+      // Step 3: Upload compressed images to Cloudinary
+      debugPrint('DPR Submit: Uploading compressed images to Cloudinary...');
+      final cloudinaryUrls = await CloudinaryService.uploadMultipleImages(compressedFiles);
+      
+      if (cloudinaryUrls == null) {
+        // Upload failed after retry - save offline
+        debugPrint('DPR Submit: Cloudinary upload failed after retry - saving offline');
+        await _submitOffline();
+        return;
+      }
+
+      // Step 4: Save to Firebase with Cloudinary URLs
+      debugPrint('DPR Submit: Saving to Firebase with ${cloudinaryUrls.length} image URLs...');
+      await _saveToFirebase(cloudinaryUrls);
+      
+      debugPrint('DPR Submit: Online submission successful');
+      
+    } catch (e) {
+      debugPrint('DPR Submit: Unexpected error during submission: $e');
+      await _submitOffline();
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+        Navigator.of(context).pop();
+      }
+    }
+  }
+
+  /// Save DPR to Firebase with Cloudinary URLs
+  Future<void> _saveToFirebase(List<String> cloudinaryUrls) async {
+    final currentUser = FirebaseAuth.instance.currentUser;
     final report = {
       'workDone': _workDoneController.text.trim(),
       'materialsUsed': _materialsUsedController.text.trim(),
       'workersPresent': _workersPresentController.text.trim(),
-      'imagesCount': _images.length,
+      'imageUrls': cloudinaryUrls,
+      'imagesCount': cloudinaryUrls.length,
       'createdAt': DateTime.now().toIso8601String(),
+      'createdBy': currentUser?.uid,
+      'status': 'submitted',
     };
 
-    try {
-      // Try existing Firebase write logic
-      await FirebaseFirestore.instance.collection('dpr_reports').add(report);
+    await FirebaseFirestore.instance.collection('dpr_reports').add(report);
 
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          behavior: SnackBarBehavior.floating,
-          backgroundColor: Colors.black.withValues(alpha: 0.80),
-          content: Row(
-            children: const [
-              Icon(Icons.check_circle, color: Colors.white),
-              SizedBox(width: 8),
-              Expanded(child: Text('DPR submitted to Engineer for review')),
-            ],
-          ),
+    if (!mounted) return;
+    
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        behavior: SnackBarBehavior.floating,
+        backgroundColor: Colors.black.withValues(alpha: 0.80),
+        content: Row(
+          children: const [
+            Icon(Icons.check_circle, color: Colors.white),
+            SizedBox(width: 8),
+            Expanded(child: Text('DPR submitted to Engineer for review')),
+          ],
         ),
-      );
-    } catch (e) {
-      // If Firebase fails OR device is offline
-      await OfflineSyncService().saveDprOffline(report);
+      ),
+    );
+  }
 
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          behavior: SnackBarBehavior.floating,
-          backgroundColor: Colors.orange.shade800,
-          content: Row(
-            children: const [
-              Icon(Icons.wifi_off_rounded, color: Colors.white),
-              SizedBox(width: 8),
-              Expanded(child: Text('Saved offline (will sync later)')),
-            ],
-          ),
+  /// Save DPR offline for later sync (only when upload truly fails)
+  Future<void> _submitOffline() async {
+    debugPrint('DPR Submit: Saving offline - upload failed or no internet...');
+    
+    // Save image paths for offline storage
+    final imagePaths = _selectedImages.map((xFile) => xFile.path).toList();
+    
+    await OfflineSyncService().saveDprOfflineNew(
+      workDone: _workDoneController.text.trim(),
+      materialsUsed: _materialsUsedController.text.trim(),
+      workersPresent: _workersPresentController.text.trim(),
+      localImagePaths: imagePaths,
+    );
+
+    debugPrint('DPR Submit: Offline save successful - will sync when connection improves');
+    if (!mounted) return;
+    
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        behavior: SnackBarBehavior.floating,
+        backgroundColor: Colors.orange.shade800,
+        content: Row(
+          children: const [
+            Icon(Icons.wifi_off_rounded, color: Colors.white),
+            SizedBox(width: 8),
+            Expanded(child: Text('Saved offline (will sync later)')),
+          ],
         ),
-      );
-    }
-
-    if (mounted) {
-      setState(() => _isLoading = false);
-      Navigator.of(context).pop();
-    }
+      ),
+    );
   }
 
   @override
@@ -191,13 +280,13 @@ class _DPRFormScreenState extends State<DPRFormScreen> {
                     // Photos
                     _GlassButton(
                       icon: Icons.photo_library_outlined,
-                      label: _images.isEmpty
+                      label: _selectedImages.isEmpty
                           ? 'Upload Photos (2–5)'
-                          : 'Add More Photos (${_images.length}/5)',
-                      onTap: _pickImages,
+                          : 'Add More Photos (${_selectedImages.length}/5)',
+                      onTap: _onAddPhotoPressed,
                     ),
                     const SizedBox(height: 10),
-                    if (_images.isNotEmpty) _PreviewGrid(images: _images),
+                    if (_selectedImages.isNotEmpty) _PreviewGrid(images: _selectedImages),
 
                     const SizedBox(height: 22),
 
@@ -532,7 +621,7 @@ class _PrimarySubmitButton extends StatelessWidget {
 }
 
 class _PreviewGrid extends StatelessWidget {
-  final List<ImageProvider> images;
+  final List<XFile> images;
   const _PreviewGrid({required this.images});
   @override
   Widget build(BuildContext context) {
@@ -565,7 +654,16 @@ class _PreviewGrid extends StatelessWidget {
               child: Stack(
                 fit: StackFit.expand,
                 children: [
-                  Image(image: images[i], fit: BoxFit.cover),
+                  Image.file(
+                    File(images[i].path),
+                    fit: BoxFit.cover,
+                    errorBuilder: (context, error, stackTrace) {
+                      return Container(
+                        color: Colors.grey[300],
+                        child: const Icon(Icons.error, color: Colors.red),
+                      );
+                    },
+                  ),
                   Container(
                     decoration: BoxDecoration(
                       gradient: LinearGradient(

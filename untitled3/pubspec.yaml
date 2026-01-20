@@ -33,6 +33,12 @@ dependencies:
   # 🎨 SVG Support
   flutter_svg: ^2.0.10+1
 
+  image_picker: ^1.0.7
+  flutter_image_compress: ^2.3.0
+  geolocator: ^10.1.0
+  path: ^1.9.0
+
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

@@ -12,6 +12,7 @@ class ProjectCardBase extends StatelessWidget {
   final bool showCreatedBy;
   final bool showOwner;
   final bool showManager;
+  final String? customStatusText;
 
   const ProjectCardBase({
     super.key,
@@ -21,6 +22,7 @@ class ProjectCardBase extends StatelessWidget {
     this.showCreatedBy = false,
     this.showOwner = false,
     this.showManager = false,
+    this.customStatusText,
   });
 
   @override
@@ -66,7 +68,9 @@ class ProjectCardBase extends StatelessWidget {
                         ),
                       ),
                       const SizedBox(width: 8),
-                      StatusBadge(status: project.status),
+                      StatusBadge(
+                        status: customStatusText ?? project.status,
+                      ),
                     ],
                   ),
                   const SizedBox(height: 12),

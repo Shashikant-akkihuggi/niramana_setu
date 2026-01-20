@@ -100,16 +100,91 @@ class ProjectService {
     });
   }
 
-  /// Manager accepts project
+  /// Manager accepts project with complete user state management
+  /// This implements the COMPLETE Manager Accept Flow
   static Future<void> acceptProject(String projectId) async {
     if (currentUserId == null) {
       throw Exception('User not authenticated');
     }
 
-    await _firestore.collection('projects').doc(projectId).update({
-      'status': 'active',
-      'managerAcceptedAt': FieldValue.serverTimestamp(),
+    // Use Firestore transaction to ensure data consistency
+    await _firestore.runTransaction((transaction) async {
+      // 1. Get current user document
+      final userRef = _firestore.collection('users').doc(currentUserId!);
+      final userDoc = await transaction.get(userRef);
+      
+      if (!userDoc.exists) {
+        throw Exception('User document not found');
+      }
+
+      final userData = userDoc.data()!;
+      
+      // 2. Get current arrays (handle null safely)
+      List<String> assignedProjectIds = List<String>.from(userData['assignedProjectIds'] ?? []);
+      List<String> acceptedProjectIds = List<String>.from(userData['acceptedProjectIds'] ?? []);
+      
+      // 3. Prevent double acceptance
+      if (acceptedProjectIds.contains(projectId)) {
+        throw Exception('Project already accepted');
+      }
+      
+      // 4. Update user document
+      // Remove from assignedProjectIds and add to acceptedProjectIds
+      assignedProjectIds.remove(projectId);
+      acceptedProjectIds.add(projectId);
+      
+      transaction.update(userRef, {
+        'assignedProjectIds': assignedProjectIds,
+        'acceptedProjectIds': acceptedProjectIds,
+      });
+      
+      // 5. Update project document
+      final projectRef = _firestore.collection('projects').doc(projectId);
+      transaction.update(projectRef, {
+        'status': 'active',
+        'managerAcceptedAt': FieldValue.serverTimestamp(),
+      });
     });
+  }
+
+  /// Check if current manager has accepted a specific project
+  static Future<bool> hasManagerAcceptedProject(String projectId) async {
+    if (currentUserId == null) return false;
+    
+    try {
+      final userDoc = await _firestore
+          .collection('users')
+          .doc(currentUserId!)
+          .get();
+      
+      if (!userDoc.exists) return false;
+      
+      final userData = userDoc.data()!;
+      final acceptedProjectIds = List<String>.from(userData['acceptedProjectIds'] ?? []);
+      
+      return acceptedProjectIds.contains(projectId);
+    } catch (e) {
+      return false;
+    }
+  }
+
+  /// Get accepted project IDs for current manager
+  static Future<List<String>> getManagerAcceptedProjectIds() async {
+    if (currentUserId == null) return [];
+    
+    try {
+      final userDoc = await _firestore
+          .collection('users')
+          .doc(currentUserId!)
+          .get();
+      
+      if (!userDoc.exists) return [];
+      
+      final userData = userDoc.data()!;
+      return List<String>.from(userData['acceptedProjectIds'] ?? []);
+    } catch (e) {
+      return [];
+    }
   }
 
   /// Get project by ID

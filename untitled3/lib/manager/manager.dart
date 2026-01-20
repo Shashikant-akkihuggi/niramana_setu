@@ -10,6 +10,7 @@ import '../common/services/logout_service.dart';
 import '../common/widgets/public_id_display.dart';
 import '../services/notification_service.dart';
 import '../services/real_time_project_service.dart';
+import '../services/manager_service.dart';
 import '../common/models/project_model.dart';
 import '../common/project_context.dart';
 
@@ -372,8 +373,8 @@ class ManagerProjectsScreen extends StatelessWidget {
           const SizedBox(height: 20),
           
           Expanded(
-            child: StreamBuilder<List<ProjectModel>>(
-              stream: RealTimeProjectService.getManagerProjects(),
+            child: StreamBuilder<List<ProjectWithAcceptanceStatus>>(
+              stream: ManagerService.getProjectsWithAcceptanceStatus(),
               builder: (context, snapshot) {
                 if (snapshot.connectionState == ConnectionState.waiting) {
                   return const Center(
@@ -417,9 +418,9 @@ class ManagerProjectsScreen extends StatelessWidget {
                   );
                 }
 
-                final projects = snapshot.data ?? [];
+                final projectsWithStatus = snapshot.data ?? [];
 
-                if (projects.isEmpty) {
+                if (projectsWithStatus.isEmpty) {
                   return Center(
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
@@ -451,18 +452,23 @@ class ManagerProjectsScreen extends StatelessWidget {
                 }
 
                 return ListView.builder(
-                  itemCount: projects.length,
+                  itemCount: projectsWithStatus.length,
                   itemBuilder: (context, index) {
-                    final project = projects[index];
+                    final projectWithStatus = projectsWithStatus[index];
                     return ManagerProjectCard(
-                      project: project,
-                      onTap: () {
-                        // Set active project and navigate to dashboard with features
-                        ProjectContext.setActiveProject(project.id, project.projectName);
-                        Navigator.of(context).pushReplacement(
-                          MaterialPageRoute(builder: (_) => FieldManagerDashboard()),
-                        );
-                      },
+                      projectWithStatus: projectWithStatus,
+                      onTap: projectWithStatus.areFeaturesEnabled 
+                          ? () {
+                              // Set active project and navigate to dashboard with features
+                              ProjectContext.setActiveProject(
+                                projectWithStatus.project.id, 
+                                projectWithStatus.project.projectName
+                              );
+                              Navigator.of(context).pushReplacement(
+                                MaterialPageRoute(builder: (_) => FieldManagerDashboard()),
+                              );
+                            }
+                          : null, // Disable tap if features not enabled
                     );
                   },
                 );
