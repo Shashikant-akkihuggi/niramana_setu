@@ -1,15 +1,13 @@
 import 'package:flutter/material.dart';
 import 'dart:ui' as ui;
-import 'package:firebase_auth/firebase_auth.dart';
 import '../common/models/project_model.dart';
-import '../common/models/user_model.dart';
 import '../common/services/firestore_service.dart';
 import '../common/widgets/loading_overlay.dart';
-import '../common/localization/app_localizations.dart';
 import '../services/user_service.dart';
+import '../services/project_reassignment_service.dart';
 
 /// Create Project Screen for Engineers
-/// Allows engineers to create new projects with owner and manager assignment
+/// Allows engineers to create new projects by selecting from existing users
 class CreateProjectScreen extends StatefulWidget {
   const CreateProjectScreen({super.key});
 
@@ -20,21 +18,49 @@ class CreateProjectScreen extends StatefulWidget {
 class _CreateProjectScreenState extends State<CreateProjectScreen> with LoadingStateMixin {
   final _formKey = GlobalKey<FormState>();
   final _projectNameController = TextEditingController();
-  final _ownerIdController = TextEditingController();
-  final _managerIdController = TextEditingController();
 
-  UserModel? _validatedOwner;
-  UserModel? _validatedManager;
-  bool _isValidatingIds = false;
+  UserData? _selectedOwner;
+  UserData? _selectedManager;
+  List<UserData> _availableOwners = [];
+  List<UserData> _availableManagers = [];
+  bool _isLoadingUsers = false;
 
   static const Color primary = Color(0xFF136DEC);
   static const Color accent = Color(0xFF7A5AF8);
 
   @override
+  void initState() {
+    super.initState();
+    _loadAvailableUsers();
+  }
+
+  Future<void> _loadAvailableUsers() async {
+    setState(() => _isLoadingUsers = true);
+
+    try {
+      final results = await Future.wait([
+        ProjectReassignmentService.getAvailableUsersByRole('owner'),
+        ProjectReassignmentService.getAvailableUsersByRole('manager'),
+      ]);
+
+      if (mounted) {
+        setState(() {
+          _availableOwners = results[0];
+          _availableManagers = results[1];
+          _isLoadingUsers = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isLoadingUsers = false);
+        _showError('Failed to load users: ${e.toString()}');
+      }
+    }
+  }
+
+  @override
   void dispose() {
     _projectNameController.dispose();
-    _ownerIdController.dispose();
-    _managerIdController.dispose();
     super.dispose();
   }
 
@@ -151,115 +177,25 @@ class _CreateProjectScreenState extends State<CreateProjectScreen> with LoadingS
                                   ),
                                   const SizedBox(height: 16),
 
-                                  // Owner ID Input
-                                  TextFormField(
-                                    controller: _ownerIdController,
-                                    decoration: InputDecoration(
-                                      labelText: 'Owner ID',
-                                      hintText: 'Enter owner ID (e.g., shas1234)',
-                                      border: const OutlineInputBorder(),
-                                      prefixIcon: const Icon(Icons.person),
-                                      suffixIcon: _isValidatingIds
-                                          ? const SizedBox(
-                                              width: 20,
-                                              height: 20,
-                                              child: Padding(
-                                                padding: EdgeInsets.all(12),
-                                                child: CircularProgressIndicator(strokeWidth: 2),
-                                              ),
-                                            )
-                                          : _validatedOwner != null
-                                              ? const Icon(Icons.check_circle, color: Color(0xFF10B981))
-                                              : null,
-                                    ),
-                                    onChanged: (value) {
-                                      // Clear validation when user types
-                                      if (_validatedOwner != null) {
-                                        setState(() {
-                                          _validatedOwner = null;
-                                        });
-                                      }
-                                    },
-                                    validator: (value) {
-                                      if (value == null || value.trim().isEmpty) {
-                                        return 'Please enter owner ID';
-                                      }
-                                      return null;
-                                    },
+                                  // Owner Selection
+                                  _buildUserDropdown(
+                                    label: 'Select Owner',
+                                    icon: Icons.person,
+                                    users: _availableOwners,
+                                    selectedUser: _selectedOwner,
+                                    onChanged: (user) => setState(() => _selectedOwner = user),
+                                    isLoading: _isLoadingUsers,
                                   ),
-                                  
-                                  // Owner Preview
-                                  if (_validatedOwner != null) ...[
-                                    const SizedBox(height: 8),
-                                    _buildUserPreview(_validatedOwner!, 'Owner'),
-                                  ],
-                                  
                                   const SizedBox(height: 16),
 
-                                  // Manager ID Input
-                                  TextFormField(
-                                    controller: _managerIdController,
-                                    decoration: InputDecoration(
-                                      labelText: 'Manager ID',
-                                      hintText: 'Enter manager ID (e.g., mana5678)',
-                                      border: const OutlineInputBorder(),
-                                      prefixIcon: const Icon(Icons.manage_accounts),
-                                      suffixIcon: _isValidatingIds
-                                          ? const SizedBox(
-                                              width: 20,
-                                              height: 20,
-                                              child: Padding(
-                                                padding: EdgeInsets.all(12),
-                                                child: CircularProgressIndicator(strokeWidth: 2),
-                                              ),
-                                            )
-                                          : _validatedManager != null
-                                              ? const Icon(Icons.check_circle, color: Color(0xFF10B981))
-                                              : null,
-                                    ),
-                                    onChanged: (value) {
-                                      // Clear validation when user types
-                                      if (_validatedManager != null) {
-                                        setState(() {
-                                          _validatedManager = null;
-                                        });
-                                      }
-                                    },
-                                    validator: (value) {
-                                      if (value == null || value.trim().isEmpty) {
-                                        return 'Please enter manager ID';
-                                      }
-                                      return null;
-                                    },
-                                  ),
-                                  
-                                  // Manager Preview
-                                  if (_validatedManager != null) ...[
-                                    const SizedBox(height: 8),
-                                    _buildUserPreview(_validatedManager!, 'Manager'),
-                                  ],
-                                  
-                                  const SizedBox(height: 16),
-
-                                  // Validate IDs Button
-                                  ElevatedButton.icon(
-                                    onPressed: _isValidatingIds ? null : _validateIds,
-                                    icon: _isValidatingIds
-                                        ? const SizedBox(
-                                            width: 16,
-                                            height: 16,
-                                            child: CircularProgressIndicator(strokeWidth: 2),
-                                          )
-                                        : const Icon(Icons.search, size: 18),
-                                    label: Text(_isValidatingIds ? 'Validating...' : 'Validate IDs'),
-                                    style: ElevatedButton.styleFrom(
-                                      backgroundColor: const Color(0xFF3B82F6),
-                                      foregroundColor: Colors.white,
-                                      padding: const EdgeInsets.symmetric(vertical: 12),
-                                      shape: RoundedRectangleBorder(
-                                        borderRadius: BorderRadius.circular(8),
-                                      ),
-                                    ),
+                                  // Manager Selection
+                                  _buildUserDropdown(
+                                    label: 'Select Manager',
+                                    icon: Icons.manage_accounts,
+                                    users: _availableManagers,
+                                    selectedUser: _selectedManager,
+                                    onChanged: (user) => setState(() => _selectedManager = user),
+                                    isLoading: _isLoadingUsers,
                                   ),
                                   const SizedBox(height: 24),
 
@@ -326,91 +262,15 @@ class _CreateProjectScreenState extends State<CreateProjectScreen> with LoadingS
     );
   }
 
-  Widget _buildUserPreview(UserModel user, String role) {
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: const Color(0xFFD4EDDA),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: const Color(0xFFC3E6CB)),
-      ),
-      child: Row(
-        children: [
-          const Icon(Icons.check_circle, color: Color(0xFF155724), size: 16),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              '$role: ${user.name}',
-              style: const TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w600,
-                color: Color(0xFF155724),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
   bool _canCreateProject() {
-    return _validatedOwner != null && _validatedManager != null && !_isValidatingIds;
-  }
-
-  Future<void> _validateIds() async {
-    if (_ownerIdController.text.trim().isEmpty || _managerIdController.text.trim().isEmpty) {
-      _showError('Owner ID and Manager ID are required');
-      return;
-    }
-
-    setState(() {
-      _isValidatingIds = true;
-      _validatedOwner = null;
-      _validatedManager = null;
-    });
-
-    try {
-      final result = await UserService.validateProjectUsers(
-        ownerId: _ownerIdController.text.trim(),
-        managerId: _managerIdController.text.trim(),
-      );
-
-      if (mounted) {
-        setState(() {
-          _isValidatingIds = false;
-        });
-
-        if (result['success']) {
-          setState(() {
-            _validatedOwner = result['owner'];
-            _validatedManager = result['manager'];
-          });
-          
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('IDs validated successfully'),
-              backgroundColor: Color(0xFF10B981),
-            ),
-          );
-        } else {
-          _showError(result['error']);
-        }
-      }
-    } catch (e) {
-      if (mounted) {
-        setState(() {
-          _isValidatingIds = false;
-        });
-        _showError('Failed to validate IDs: ${e.toString()}');
-      }
-    }
+    return _selectedOwner != null && _selectedManager != null && !_isLoadingUsers;
   }
 
   Future<void> _createProject() async {
     if (!_formKey.currentState!.validate()) return;
     
     if (!_canCreateProject()) {
-      _showError('Please validate Owner ID and Manager ID first');
+      _showError('Please select both Owner and Manager');
       return;
     }
 
@@ -421,22 +281,23 @@ class _CreateProjectScreenState extends State<CreateProjectScreen> with LoadingS
           throw Exception('User not authenticated');
         }
 
-        // Debug logging (temporary)
-        print('AUTH UID: ${FirebaseAuth.instance.currentUser!.uid}');
-        print('ENGINEER ID IN PROJECT: $currentUserId');
+        // DEBUG: Log current user UID
+        print('🔐 CREATE PROJECT - Engineer UID: $currentUserId');
+        print('👤 CREATE PROJECT - Selected Owner: ${_selectedOwner!.fullName} (${_selectedOwner!.uid})');
+        print('👤 CREATE PROJECT - Selected Manager: ${_selectedManager!.fullName} (${_selectedManager!.uid})');
 
         final project = ProjectModel(
           id: '', // Will be set by Firestore
           projectName: _projectNameController.text.trim(),
           createdBy: currentUserId,
-          ownerId: _validatedOwner!.generatedId, // Store publicId for display
-          managerId: _validatedManager!.generatedId, // Store publicId for display
+          ownerId: _selectedOwner!.publicId ?? _selectedOwner!.uid, // Store publicId for display
+          managerId: _selectedManager!.publicId ?? _selectedManager!.uid, // Store publicId for display
           status: 'pending_owner_approval',
           createdAt: DateTime.now(),
-          ownerUid: _validatedOwner!.uid, // Store Firebase UID for queries
-          managerUid: _validatedManager!.uid, // Store Firebase UID for queries
-          ownerName: _validatedOwner!.name, // Cache name for display
-          managerName: _validatedManager!.name, // Cache name for display
+          ownerUid: _selectedOwner!.uid, // Store Firebase UID for queries
+          managerUid: _selectedManager!.uid, // Store Firebase UID for queries
+          ownerName: _selectedOwner!.fullName, // Cache name for display
+          managerName: _selectedManager!.fullName, // Cache name for display
         );
 
         final projectId = await FirestoreService.createProject(project);
@@ -464,6 +325,106 @@ class _CreateProjectScreenState extends State<CreateProjectScreen> with LoadingS
         content: Text(message),
         backgroundColor: const Color(0xFFEF4444),
       ),
+    );
+  }
+
+  Widget _buildUserDropdown({
+    required String label,
+    required IconData icon,
+    required List<UserData> users,
+    required UserData? selectedUser,
+    required ValueChanged<UserData?> onChanged,
+    required bool isLoading,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: const TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.w600,
+            color: Color(0xFF374151),
+          ),
+        ),
+        const SizedBox(height: 8),
+        Container(
+          decoration: BoxDecoration(
+            border: Border.all(color: Colors.grey[300]!),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: isLoading
+              ? const Padding(
+                  padding: EdgeInsets.all(16),
+                  child: Row(
+                    children: [
+                      SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      ),
+                      SizedBox(width: 12),
+                      Text('Loading users...'),
+                    ],
+                  ),
+                )
+              : users.isEmpty
+                  ? Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Row(
+                        children: [
+                          Icon(Icons.warning, color: Colors.orange[600]),
+                          const SizedBox(width: 12),
+                          Text('No ${label.toLowerCase()}s available'),
+                        ],
+                      ),
+                    )
+                  : DropdownButtonFormField<UserData>(
+                      value: selectedUser,
+                      decoration: InputDecoration(
+                        prefixIcon: Icon(icon),
+                        border: InputBorder.none,
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 16,
+                        ),
+                      ),
+                      hint: Text('Select ${label.toLowerCase()}'),
+                      items: users.map((user) {
+                        return DropdownMenuItem<UserData>(
+                          value: user,
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                user.fullName,
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                              if (user.publicId != null)
+                                Text(
+                                  'ID: ${user.publicId}',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: Colors.grey[600],
+                                  ),
+                                ),
+                            ],
+                          ),
+                        );
+                      }).toList(),
+                      onChanged: onChanged,
+                      validator: (value) {
+                        if (value == null) {
+                          return 'Please select a ${label.toLowerCase()}';
+                        }
+                        return null;
+                      },
+                    ),
+        ),
+      ],
     );
   }
 }

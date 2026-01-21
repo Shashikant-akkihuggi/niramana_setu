@@ -19,7 +19,6 @@ import 'common/project_context.dart';
 import 'models/offline_dpr_model.dart';
 import 'common/services/connectivity_service.dart';
 import 'config/cloudinary_config.dart';
-import 'auth/login_screen.dart';
 import 'auth/register_screen.dart';
 
 /// Generate public ID in format: (first 4 letters of name, lowercase) + (4 random digits)

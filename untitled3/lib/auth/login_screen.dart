@@ -3,6 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'dart:ui' as ui;
 import '../services/auth_service.dart';
+import '../services/public_id_service.dart';
 import '../engineer/engineer_dashboard.dart';
 import '../manager/manager.dart';
 import '../owner/owner.dart';
@@ -51,6 +52,10 @@ class _LoginScreenState extends State<LoginScreen> {
       final user = userCredential.user;
 
       if (user != null) {
+        // DEBUG: Log current user UID
+        print('🔐 LOGIN SUCCESS - User UID: ${user.uid}');
+        print('📧 LOGIN SUCCESS - User Email: ${user.email}');
+        
         // Check if user exists in Firestore
         final userDoc = await FirebaseFirestore.instance
             .collection('users')
@@ -60,9 +65,12 @@ class _LoginScreenState extends State<LoginScreen> {
         if (userDoc.exists) {
           // Existing user - navigate to role-based dashboard
           final role = userDoc.data()?['role'];
+          print('👤 LOGIN SUCCESS - User Role: $role');
+          print('📄 LOGIN SUCCESS - Firestore Document Exists: YES');
           _navigateToDashboard(role);
         } else {
           // User exists in Auth but not in Firestore
+          print('❌ LOGIN ERROR - Firestore Document Exists: NO');
           _showErrorSnackBar('Account not found. Please create an account.');
         }
       }
@@ -103,6 +111,10 @@ class _LoginScreenState extends State<LoginScreen> {
       final user = userCredential.user;
       
       if (user != null) {
+        // DEBUG: Log current user UID for Google login
+        print('🔐 GOOGLE LOGIN SUCCESS - User UID: ${user.uid}');
+        print('📧 GOOGLE LOGIN SUCCESS - User Email: ${user.email}');
+        
         // Check if user exists in Firestore
         final userDoc = await FirebaseFirestore.instance
             .collection('users')
@@ -112,23 +124,30 @@ class _LoginScreenState extends State<LoginScreen> {
         if (userDoc.exists) {
           // Existing user - navigate to role-based dashboard
           final role = userDoc.data()?['role'];
+          print('👤 GOOGLE LOGIN SUCCESS - User Role: $role');
+          print('📄 GOOGLE LOGIN SUCCESS - Firestore Document Exists: YES');
           _navigateToDashboard(role);
         } else {
-          // New Google user - store role and create basic profile
+          // New Google user - create profile with role-specific public ID
+          print('📄 GOOGLE LOGIN - Creating new Firestore document');
+          
+          final userData = await PublicIdService.createUserDataWithPublicId(
+            uid: user.uid,
+            fullName: user.displayName ?? '',
+            phone: '', // Google doesn't provide phone
+            email: user.email ?? '',
+            role: widget.selectedRole,
+            profilePhotoUrl: user.photoURL ?? '',
+            profileCompletion: 100, // Google users get full completion
+            isActive: true,
+          );
+
           await FirebaseFirestore.instance
               .collection('users')
               .doc(user.uid)
-              .set({
-            'role': widget.selectedRole,
-            'email': user.email,
-            'fullName': user.displayName ?? '',
-            'profilePhotoUrl': user.photoURL ?? '',
-            'profileCompletion': 100, // Google users get full completion
-            'isActive': true,
-            'createdAt': FieldValue.serverTimestamp(),
-            'lastUpdatedAt': FieldValue.serverTimestamp(),
-          });
+              .set(userData);
           
+          print('✅ GOOGLE LOGIN - New user created with role: ${widget.selectedRole}');
           _navigateToDashboard(widget.selectedRole);
         }
       }

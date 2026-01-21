@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'dart:ui' as ui;
 import '../models/project_model.dart';
 import 'status_badge.dart';
+import 'user_display_widget.dart';
 
 /// Base project card widget that provides common UI structure
 /// Extended by role-specific project cards
@@ -84,28 +85,31 @@ class ProjectCardBase extends StatelessWidget {
                   
                   if (showCreatedBy) ...[
                     const SizedBox(height: 8),
-                    _buildDetailRow(
+                    _buildUserDetailRow(
                       icon: Icons.engineering,
                       label: 'Engineer',
-                      value: project.createdBy.substring(0, 8) + '...',
+                      uid: project.createdBy,
+                      fallbackName: project.createdBy,
                     ),
                   ],
                   
                   if (showOwner) ...[
                     const SizedBox(height: 8),
-                    _buildDetailRow(
+                    _buildUserDetailRow(
                       icon: Icons.person,
                       label: 'Owner',
-                      value: project.ownerId.substring(0, 8) + '...',
+                      uid: project.ownerUid ?? project.ownerId,
+                      fallbackName: project.ownerName ?? project.ownerId,
                     ),
                   ],
                   
                   if (showManager) ...[
                     const SizedBox(height: 8),
-                    _buildDetailRow(
+                    _buildUserDetailRow(
                       icon: Icons.manage_accounts,
                       label: 'Manager',
-                      value: project.managerId.substring(0, 8) + '...',
+                      uid: project.managerUid ?? project.managerId,
+                      fallbackName: project.managerName ?? project.managerId,
                     ),
                   ],
 
@@ -177,6 +181,48 @@ class ProjectCardBase extends StatelessWidget {
         ),
       ],
     );
+  }
+
+  Widget _buildUserDetailRow({
+    required IconData icon,
+    required String label,
+    required String uid,
+    required String fallbackName,
+  }) {
+    return Row(
+      children: [
+        Icon(
+          icon,
+          size: 16,
+          color: const Color(0xFF6B7280),
+        ),
+        const SizedBox(width: 8),
+        Text(
+          '$label: ',
+          style: const TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.w500,
+            color: Color(0xFF6B7280),
+          ),
+        ),
+        Expanded(
+          child: UserDisplayWidget(
+            uid: uid,
+            fallbackText: _truncateText(fallbackName, 20),
+            textStyle: const TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+              color: Color(0xFF374151),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  String _truncateText(String text, int maxLength) {
+    if (text.length <= maxLength) return text;
+    return '${text.substring(0, maxLength)}...';
   }
 
   String _formatDate(DateTime date) {

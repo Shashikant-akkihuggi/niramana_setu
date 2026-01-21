@@ -4,6 +4,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../engineer/engineer_dashboard.dart';
 import '../../manager/manager.dart';
 import '../../owner/owner.dart';
+import '../../services/public_id_service.dart';
 
 class OnboardingStep3Work extends StatefulWidget {
   final String role;
@@ -115,25 +116,24 @@ class _OnboardingStep3WorkState extends State<OnboardingStep3Work> {
     setState(() => _isLoading = true);
 
     try {
-      final updateData = <String, dynamic>{
-        'profileCompletion': 100,
-        'isActive': true,
-        'lastUpdatedAt': FieldValue.serverTimestamp(),
-      };
+      final additionalFields = <String, dynamic>{};
 
       // Add role-specific fields
       if (_showCitySelection && _selectedCities.isNotEmpty) {
-        updateData['operatingCities'] = _selectedCities;
+        additionalFields['operatingCities'] = _selectedCities;
       }
 
       if (_showFirmType && _selectedFirmType != null) {
-        updateData['firmType'] = _selectedFirmType;
+        additionalFields['firmType'] = _selectedFirmType;
       }
 
-      await FirebaseFirestore.instance
-          .collection('users')
-          .doc(user.uid)
-          .update(updateData);
+      // Use PublicIdService to update profile without overwriting public ID
+      await PublicIdService.updateUserProfile(
+        uid: user.uid,
+        profileCompletion: 100,
+        isActive: true,
+        additionalFields: additionalFields,
+      );
 
       _navigateToDashboard();
     } catch (e) {

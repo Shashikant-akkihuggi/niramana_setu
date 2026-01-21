@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import '../../common/widgets/user_display_widget.dart';
 import '../../owner/plot_analysis/plot_rules_service.dart';
 import '../../owner/plot_analysis/plot_visual_view.dart';
 
@@ -62,7 +63,16 @@ class _PlotReviewScreenState extends State<PlotReviewScreen> {
                     children: [
                       const SizedBox(height: 4),
                       Text("Area: ${(data['length'] ?? 0) * (data['width'] ?? 0)} m²"),
-                      Text("Owner ID: ${(data['ownerId'] ?? 'Unknown').toString().substring(0, 5)}..."),
+                      Row(
+                        children: [
+                          const Text("Owner: "),
+                          UserDisplayWidget(
+                            uid: data['ownerId'] ?? '',
+                            fallbackText: 'Unknown Owner',
+                            textStyle: const TextStyle(fontSize: 14),
+                          ),
+                        ],
+                      ),
                       const SizedBox(height: 8),
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),

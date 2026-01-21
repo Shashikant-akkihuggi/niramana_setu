@@ -61,14 +61,20 @@ class ProjectService {
       return Stream.value([]);
     }
 
+    // DEBUG: Log current user UID for owner project queries
+    print('🔍 OWNER PROJECTS QUERY - Current User UID: $currentUserId');
+
     return _firestore
         .collection('projects')
         .where('ownerId', isEqualTo: currentUserId)
         .orderBy('createdAt', descending: true)
         .snapshots()
-        .map((snapshot) => snapshot.docs
-            .map((doc) => Project.fromFirestore(doc))
-            .toList());
+        .map((snapshot) {
+          print('📊 OWNER PROJECTS RESULT - Found ${snapshot.docs.length} projects');
+          return snapshot.docs
+              .map((doc) => Project.fromFirestore(doc))
+              .toList();
+        });
   }
 
   /// Get projects for Manager (where current user is manager)
@@ -78,14 +84,20 @@ class ProjectService {
       return Stream.value([]);
     }
 
+    // DEBUG: Log current user UID for manager project queries
+    print('🔍 MANAGER PROJECTS QUERY - Current User UID: $currentUserId');
+
     return _firestore
         .collection('projects')
         .where('managerId', isEqualTo: currentUserId)
         .orderBy('createdAt', descending: true)
         .snapshots()
-        .map((snapshot) => snapshot.docs
-            .map((doc) => Project.fromFirestore(doc))
-            .toList());
+        .map((snapshot) {
+          print('📊 MANAGER PROJECTS RESULT - Found ${snapshot.docs.length} projects');
+          return snapshot.docs
+              .map((doc) => Project.fromFirestore(doc))
+              .toList();
+        });
   }
 
   /// Owner approves project

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'onboarding_step3_work.dart';
+import '../../services/public_id_service.dart';
 
 class OnboardingStep2Professional extends StatefulWidget {
   final String role;
@@ -70,16 +71,16 @@ class _OnboardingStep2ProfessionalState extends State<OnboardingStep2Professiona
     setState(() => _isLoading = true);
 
     try {
-      await FirebaseFirestore.instance
-          .collection('users')
-          .doc(user.uid)
-          .update({
-        'qualification': _selectedQualification,
-        'specialization': _selectedSpecialization,
-        'experienceYears': _experienceYears,
-        'profileCompletion': 70,
-        'lastUpdatedAt': FieldValue.serverTimestamp(),
-      });
+      // Use PublicIdService to update profile without overwriting public ID
+      await PublicIdService.updateUserProfile(
+        uid: user.uid,
+        profileCompletion: 70,
+        additionalFields: {
+          'qualification': _selectedQualification,
+          'specialization': _selectedSpecialization,
+          'experienceYears': _experienceYears,
+        },
+      );
 
       _navigateToNextStep();
     } catch (e) {

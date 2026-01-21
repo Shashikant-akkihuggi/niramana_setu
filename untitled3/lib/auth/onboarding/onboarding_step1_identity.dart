@@ -5,6 +5,7 @@ import 'package:image_picker/image_picker.dart';
 import 'dart:io';
 import 'onboarding_step2_professional.dart';
 import 'onboarding_step3_work.dart';
+import '../../services/public_id_service.dart';
 
 class OnboardingStep1Identity extends StatefulWidget {
   final String role;
@@ -131,23 +132,24 @@ class _OnboardingStep1IdentityState extends State<OnboardingStep1Identity> {
   }
 
   Future<void> _createFirestoreDocument(String uid) async {
-    final userData = {
-      'uid': uid,
-      'fullName': _fullNameController.text.trim(),
-      'phone': _phoneController.text.trim(),
-      'email': _emailController.text.trim(),
-      'role': widget.role,
-      'profilePhotoUrl': '', // TODO: Upload image to storage if needed
-      'profileCompletion': 40,
-      'createdAt': FieldValue.serverTimestamp(),
-      'lastUpdatedAt': FieldValue.serverTimestamp(),
-      'isActive': false,
-    };
+    // Use PublicIdService to create user data with role-specific public ID
+    final userData = await PublicIdService.createUserDataWithPublicId(
+      uid: uid,
+      fullName: _fullNameController.text.trim(),
+      phone: _phoneController.text.trim(),
+      email: _emailController.text.trim(),
+      role: widget.role,
+      profilePhotoUrl: '', // TODO: Upload image to storage if needed
+      profileCompletion: 40,
+      isActive: false,
+    );
 
     await FirebaseFirestore.instance
         .collection('users')
         .doc(uid)
         .set(userData);
+        
+    print('✅ Created Firestore document for user: $uid with role: ${widget.role}');
   }
 
   void _navigateToNextStep() {

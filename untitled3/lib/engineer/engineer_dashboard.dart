@@ -4,17 +4,15 @@ import 'dart:ui' as ui;
 import 'dpr_review.dart';
 import 'material_approval.dart';
 import 'project_details.dart';
-import 'materials_page.dart';
 import 'approvals_page.dart';
 import 'profile_page.dart';
 import 'plot_review/plot_review_screen.dart';
 import 'engineer_project_card.dart';
 import 'create_project_screen.dart';
-import '../common/screens/milestone_timeline_screen.dart';
+import 'project_reassignment_screen.dart';
 import '../common/screens/milestone_hub_screen.dart';
 import '../common/services/logout_service.dart';
 import '../common/widgets/public_id_display.dart';
-import '../services/project_service.dart';
 import '../services/real_time_project_service.dart';
 import '../services/dpr_service.dart';
 import '../services/material_request_service.dart';
@@ -942,30 +940,55 @@ class EngineerProjectsScreen extends StatelessWidget {
 
                 return Column(
                   children: [
-                    // Create Project button at top when projects exist
+                    // Action buttons row at top when projects exist
                     Padding(
                       padding: const EdgeInsets.only(bottom: 16),
-                      child: ElevatedButton.icon(
-                        onPressed: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) => const CreateProjectScreen(),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: ElevatedButton.icon(
+                              onPressed: () {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (_) => const CreateProjectScreen(),
+                                  ),
+                                );
+                              },
+                              icon: const Icon(Icons.add),
+                              label: const Text('Create Project'),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: EngineerDashboard.primary,
+                                foregroundColor: Colors.white,
+                                padding: const EdgeInsets.symmetric(vertical: 12),
+                              ),
                             ),
-                          );
-                        },
-                        icon: const Icon(Icons.add),
-                        label: const Text('Create Project'),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: EngineerDashboard.primary,
-                          foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 24,
-                            vertical: 12,
                           ),
-                        ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: ElevatedButton.icon(
+                              onPressed: () {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (_) => const ProjectReassignmentScreen(),
+                                  ),
+                                );
+                              },
+                              icon: const Icon(Icons.swap_horiz),
+                              label: const Text('Reassign Projects'),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: EngineerDashboard.accent,
+                                foregroundColor: Colors.white,
+                                padding: const EdgeInsets.symmetric(vertical: 12),
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
                     ),
+
+                    // Projects list
                     Expanded(
                       child: ListView.builder(
                         itemCount: projects.length,
@@ -977,7 +1000,7 @@ class EngineerProjectsScreen extends StatelessWidget {
                               // Set active project and navigate to dashboard
                               ProjectContext.setActiveProject(project.id, project.projectName);
                               Navigator.of(context).pushReplacement(
-                                MaterialPageRoute(builder: (_) => EngineerDashboard()),
+                                MaterialPageRoute(builder: (_) => const EngineerDashboard()),
                               );
                             },
                           );
