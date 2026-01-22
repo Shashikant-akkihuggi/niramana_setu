@@ -564,6 +564,7 @@ class _LoginScreenState extends State<LoginScreen> {
       case 'manager':
         return 'Manager';
       case 'owner':
+      case 'ownerClient':
         return 'Owner';
       default:
         return 'User';

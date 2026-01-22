@@ -417,6 +417,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
       case 'manager':
         return 'Manager';
       case 'owner':
+      case 'ownerClient':
         return 'Owner';
       default:
         return 'User';

@@ -47,7 +47,7 @@ class ProjectMigrationService {
       final ownerData = newOwnerDoc.data()!;
       final managerData = newManagerDoc.data()!;
 
-      if (ownerData['role'] != 'owner') {
+      if (ownerData['role'] != 'owner' && ownerData['role'] != 'ownerClient') {
         throw Exception('New owner UID does not have owner role');
       }
 

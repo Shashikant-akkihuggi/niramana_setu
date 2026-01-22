@@ -41,7 +41,7 @@ class _UserDebugScreenState extends State<UserDebugScreen> {
 
       // Check available owners
       _addOutput('👑 Checking available owners...');
-      final owners = await ProjectReassignmentService.getAvailableUsersByRole('owner');
+      final owners = await ProjectReassignmentService.getAvailableUsersByRole('ownerClient');
       _addOutput('   Found ${owners.length} available owners');
       for (final owner in owners) {
         _addOutput('   - ${owner.fullName} (${owner.publicId})');
