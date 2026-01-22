@@ -86,16 +86,16 @@ class ProjectReassignmentService {
 
     try {
       // Validate the new owner exists and has correct role
-      final ownerValidation = await UserService.validateProjectUsers(
-        ownerId: newOwnerPublicId,
-        managerId: 'dummy', // We only need to validate owner
+      final ownerValidation = await UserService.validateSingleUser(
+        publicId: newOwnerPublicId,
+        expectedRole: 'ownerClient',
       );
 
-      if (!ownerValidation['success'] && !ownerValidation['error'].contains('Manager ID')) {
+      if (!ownerValidation['success']) {
         throw Exception(ownerValidation['error']);
       }
 
-      final newOwner = ownerValidation['owner'];
+      final newOwner = ownerValidation['user'] as UserData;
       if (newOwner == null) {
         throw Exception('Owner not found');
       }
@@ -143,16 +143,16 @@ class ProjectReassignmentService {
 
     try {
       // Validate the new manager exists and has correct role
-      final managerValidation = await UserService.validateProjectUsers(
-        ownerId: 'dummy', // We only need to validate manager
-        managerId: newManagerPublicId,
+      final managerValidation = await UserService.validateSingleUser(
+        publicId: newManagerPublicId,
+        expectedRole: 'manager',
       );
 
-      if (!managerValidation['success'] && !managerValidation['error'].contains('Owner ID')) {
+      if (!managerValidation['success']) {
         throw Exception(managerValidation['error']);
       }
 
-      final newManager = managerValidation['manager'];
+      final newManager = managerValidation['user'] as UserData;
       if (newManager == null) {
         throw Exception('Manager not found');
       }
@@ -191,6 +191,8 @@ class ProjectReassignmentService {
   /// Get available users for reassignment by role
   static Future<List<UserData>> getAvailableUsersByRole(String role) async {
     try {
+      print('🔍 Searching for users with role: $role');
+      
       final usersSnapshot = await _firestore
           .collection('users')
           .where('role', isEqualTo: role)
@@ -198,11 +200,36 @@ class ProjectReassignmentService {
           .orderBy('fullName')
           .get();
 
-      return usersSnapshot.docs
+      print('📊 Found ${usersSnapshot.docs.length} active users with role: $role');
+
+      // Convert to UserData and filter by publicId
+      final allUsers = usersSnapshot.docs
           .map((doc) => UserData.fromFirestore(doc))
           .toList();
+
+      final usersWithPublicId = allUsers
+          .where((user) => user.publicId != null && user.publicId!.isNotEmpty)
+          .toList();
+
+      final usersWithoutPublicId = allUsers
+          .where((user) => user.publicId == null || user.publicId!.isEmpty)
+          .toList();
+
+      print('✅ Users with publicId: ${usersWithPublicId.length}');
+      for (final user in usersWithPublicId) {
+        print('   - ${user.fullName} (publicId: ${user.publicId}, uid: ${user.uid})');
+      }
+
+      if (usersWithoutPublicId.isNotEmpty) {
+        print('⚠️  Users missing publicId: ${usersWithoutPublicId.length}');
+        for (final user in usersWithoutPublicId) {
+          print('   - ${user.fullName} (UID: ${user.uid}) - MISSING publicId');
+        }
+      }
+
+      return usersWithPublicId;
     } catch (e) {
-      print('ProjectReassignmentService.getAvailableUsersByRole error: $e');
+      print('❌ ProjectReassignmentService.getAvailableUsersByRole error: $e');
       return [];
     }
   }
@@ -227,25 +254,25 @@ class ProjectReassignmentService {
       UserData? newManager;
 
       if (newOwnerPublicId != null) {
-        final ownerValidation = await UserService.validateProjectUsers(
-          ownerId: newOwnerPublicId,
-          managerId: 'dummy',
+        final ownerValidation = await UserService.validateSingleUser(
+          publicId: newOwnerPublicId,
+          expectedRole: 'ownerClient',
         );
-        if (!ownerValidation['success'] && !ownerValidation['error'].contains('Manager ID')) {
+        if (!ownerValidation['success']) {
           throw Exception('Owner validation failed: ${ownerValidation['error']}');
         }
-        newOwner = ownerValidation['owner'];
+        newOwner = ownerValidation['user'] as UserData;
       }
 
       if (newManagerPublicId != null) {
-        final managerValidation = await UserService.validateProjectUsers(
-          ownerId: 'dummy',
-          managerId: newManagerPublicId,
+        final managerValidation = await UserService.validateSingleUser(
+          publicId: newManagerPublicId,
+          expectedRole: 'manager',
         );
-        if (!managerValidation['success'] && !managerValidation['error'].contains('Owner ID')) {
+        if (!managerValidation['success']) {
           throw Exception('Manager validation failed: ${managerValidation['error']}');
         }
-        newManager = managerValidation['manager'];
+        newManager = managerValidation['user'] as UserData;
       }
 
       // Perform batch update using Firestore batch

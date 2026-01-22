@@ -1,5 +1,6 @@
 import 'dart:math';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 /// Service for generating and managing role-based public IDs
 /// Ensures unique, persistent IDs for all user roles
@@ -117,6 +118,20 @@ class PublicIdService {
     bool? isActive,
     Map<String, dynamic>? additionalFields,
   }) async {
+    // Add debug logging before Firestore write
+    print("AUTH UID: ${FirebaseAuth.instance.currentUser?.uid}");
+    print("Writing to users/$uid");
+    
+    // Ensure we're using the authenticated user's UID
+    final currentUser = FirebaseAuth.instance.currentUser;
+    if (currentUser == null) {
+      throw Exception('User not authenticated - cannot update profile');
+    }
+    
+    if (currentUser.uid != uid) {
+      throw Exception('UID mismatch: Auth UID (${currentUser.uid}) != passed UID ($uid)');
+    }
+    
     final updateData = <String, dynamic>{
       'lastUpdatedAt': FieldValue.serverTimestamp(),
     };
@@ -136,8 +151,13 @@ class PublicIdService {
     updateData.remove('engineerPublicId');
     updateData.remove('role'); // Role should also not change
 
-    await _firestore.collection('users').doc(uid).update(updateData);
-    print('📝 Updated user profile for UID: $uid (public ID preserved)');
+    // Use current authenticated user's UID for update
+    await _firestore
+        .collection('users')
+        .doc(FirebaseAuth.instance.currentUser!.uid)
+        .update(updateData);
+        
+    print('📝 Updated user profile for UID: ${FirebaseAuth.instance.currentUser!.uid} (public ID preserved)');
   }
 
   /// Get user's public ID from Firestore
@@ -199,6 +219,51 @@ class PublicIdService {
     } catch (e) {
       print('❌ Error finding users missing public IDs: $e');
       return [];
+    }
+  }
+
+  /// Fix users missing public IDs by generating and assigning them
+  /// This is a one-time migration method
+  static Future<void> fixUsersMissingPublicIds() async {
+    try {
+      final missingUsers = await getUsersMissingPublicIds();
+      
+      if (missingUsers.isEmpty) {
+        print('✅ All users already have public IDs');
+        return;
+      }
+
+      print('🔧 Fixing ${missingUsers.length} users missing public IDs...');
+
+      for (final userInfo in missingUsers) {
+        final uid = userInfo['uid'] as String;
+        final fullName = userInfo['fullName'] as String;
+        final role = userInfo['role'] as String;
+
+        try {
+          // Generate unique public ID
+          final publicId = await generateUniquePublicId(fullName, role);
+          final rolePublicIdField = getRolePublicIdField(role);
+
+          // Update the user document using current authenticated user's UID
+          await _firestore
+              .collection('users')
+              .doc(FirebaseAuth.instance.currentUser!.uid)
+              .update({
+            'publicId': publicId,
+            rolePublicIdField: publicId,
+            'lastUpdatedAt': FieldValue.serverTimestamp(),
+          });
+
+          print('✅ Fixed user: $fullName ($role) -> $publicId');
+        } catch (e) {
+          print('❌ Failed to fix user $fullName: $e');
+        }
+      }
+
+      print('🎉 Migration completed!');
+    } catch (e) {
+      print('❌ Error during migration: $e');
     }
   }
 }

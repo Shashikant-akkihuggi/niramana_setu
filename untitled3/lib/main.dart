@@ -167,6 +167,8 @@ class _AuthWrapperState extends State<AuthWrapper> {
     if (user != null) {
       // User is logged in, fetch their role from Firestore
       try {
+        print("Logged in UID: ${user.uid}");
+        
         final userDoc = await FirebaseFirestore.instance
             .collection('users')
             .doc(user.uid)
@@ -174,25 +176,31 @@ class _AuthWrapperState extends State<AuthWrapper> {
         
         if (userDoc.exists) {
           final role = userDoc.data()?['role'];
+          print("Role from Firestore: $role");
+          print("User document data: ${userDoc.data()}");
           
           // Navigate to appropriate dashboard based on role
           if (role == 'manager' || role == 'fieldManager') {
+            print("✅ Navigating to Manager Dashboard");
             setState(() {
               _homeWidget = const FieldManagerDashboard();
               _isLoading = false;
             });
           } else if (role == 'engineer' || role == 'projectEngineer') {
+            print("✅ Navigating to Engineer Dashboard");
             setState(() {
               _homeWidget = const EngineerDashboard();
               _isLoading = false;
             });
-          } else if (role == 'owner' || role == 'ownerClient') {
+          } else if (role == 'ownerClient') {
+            print("✅ Navigating to Owner Dashboard");
             setState(() {
               _homeWidget = const OwnerDashboard();
               _isLoading = false;
             });
           } else {
-            // Role not found, show welcome screen
+            // Role not found or invalid, show welcome screen for role selection
+            print("⚠️ Invalid or missing role: $role - showing welcome screen");
             setState(() {
               _homeWidget = const WelcomeScreen();
               _isLoading = false;
@@ -705,7 +713,7 @@ class RoleSelectionScreen extends StatelessWidget {
                                 .collection('users')
                                 .doc(user.uid)
                                 .set({
-                                  'role': 'owner', // Updated role name
+                                  'role': 'ownerClient', // Updated role name
                                   'email': user.email,
                                   'fullName': user.displayName,
                                   'profilePhotoUrl': user.photoURL ?? '',
@@ -725,7 +733,7 @@ class RoleSelectionScreen extends StatelessWidget {
                             Navigator.of(context).push(
                               MaterialPageRoute(
                                 builder: (_) => const LoginScreen(
-                                  selectedRole: 'owner',
+                                  selectedRole: 'ownerClient',
                                 ),
                               ),
                             );
@@ -1118,18 +1126,32 @@ class _LoginScreenState extends State<LoginScreen> {
 
   // Navigate to appropriate dashboard based on role
   void _navigateToDashboard(String? role) {
-    if (role == 'fieldManager') {
-      Navigator.of(context).pushReplacement(
-        MaterialPageRoute(builder: (_) => const FieldManagerDashboard()),
-      );
-    } else if (role == 'projectEngineer') {
-      Navigator.of(context).pushReplacement(
-        MaterialPageRoute(builder: (_) => const EngineerDashboard()),
-      );
-    } else if (role == 'ownerClient') {
-      Navigator.of(context).pushReplacement(
-        MaterialPageRoute(builder: (_) => const OwnerDashboard()),
-      );
+    print("Logged in UID: ${FirebaseAuth.instance.currentUser?.uid}");
+    print("Role from Firestore: $role");
+    
+    switch (role) {
+      case 'manager':
+      case 'fieldManager':
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(builder: (_) => const FieldManagerDashboard()),
+        );
+        break;
+      case 'engineer':
+      case 'projectEngineer':
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(builder: (_) => const EngineerDashboard()),
+        );
+        break;
+      case 'owner':
+      case 'ownerClient':
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(builder: (_) => const OwnerDashboard()),
+        );
+        break;
+      default:
+        print("⚠️ Invalid role '$role' - staying on welcome screen");
+        // Don't navigate anywhere - stay on welcome screen
+        break;
     }
   }
 

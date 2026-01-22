@@ -7,6 +7,7 @@ import '../services/public_id_service.dart';
 import '../engineer/engineer_dashboard.dart';
 import '../manager/manager.dart';
 import '../owner/owner.dart';
+import '../main.dart';
 import 'register_screen.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -39,6 +40,49 @@ class _LoginScreenState extends State<LoginScreen> {
     super.dispose();
   }
 
+  Future<void> _migrateUserPublicId(String uid, Map<String, dynamic> userData) async {
+    try {
+      // Add debug logging before Firestore write
+      print("AUTH UID: ${FirebaseAuth.instance.currentUser?.uid}");
+      print("Writing to users/$uid");
+      
+      // Ensure we're using the authenticated user's UID
+      final currentUser = FirebaseAuth.instance.currentUser;
+      if (currentUser == null) {
+        throw Exception('User not authenticated - cannot migrate publicId');
+      }
+      
+      if (currentUser.uid != uid) {
+        throw Exception('UID mismatch: Auth UID (${currentUser.uid}) != passed UID ($uid)');
+      }
+      
+      final fullName = userData['fullName'] ?? 'Unknown User';
+      final role = userData['role'] ?? 'user';
+      
+      print('🔧 MIGRATION: Generating publicId for $fullName ($role)');
+      
+      // Generate unique public ID
+      final publicId = await PublicIdService.generateUniquePublicId(fullName, role);
+      final rolePublicIdField = PublicIdService.getRolePublicIdField(role);
+      
+      // Update user document using current authenticated user's UID
+      await FirebaseFirestore.instance
+          .collection('users')
+          .doc(FirebaseAuth.instance.currentUser!.uid)
+          .update({
+        'publicId': publicId,
+        rolePublicIdField: publicId,
+        'lastUpdatedAt': FieldValue.serverTimestamp(),
+      });
+      
+      print('✅ MIGRATION: Generated publicId: $publicId for $fullName');
+      print('📝 MIGRATION: Updated field: $rolePublicIdField');
+    } catch (e) {
+      print('❌ MIGRATION ERROR: Failed to generate publicId for user $uid: $e');
+      // Don't throw - allow login to continue even if migration fails
+    }
+  }
+
   Future<void> _loginWithEmail() async {
     if (!_formKey.currentState!.validate()) return;
 
@@ -63,10 +107,22 @@ class _LoginScreenState extends State<LoginScreen> {
             .get();
 
         if (userDoc.exists) {
-          // Existing user - navigate to role-based dashboard
-          final role = userDoc.data()?['role'];
+          // Existing user - check if they need publicId migration
+          final userData = userDoc.data()!;
+          final role = userData['role'];
+          final publicId = userData['publicId'];
+          
           print('👤 LOGIN SUCCESS - User Role: $role');
           print('📄 LOGIN SUCCESS - Firestore Document Exists: YES');
+          print('🆔 LOGIN SUCCESS - PublicId: $publicId');
+          print('📋 LOGIN SUCCESS - Full user data: $userData');
+          
+          // SAFE MIGRATION: Auto-generate publicId if missing
+          if (publicId == null || publicId.toString().isEmpty) {
+            print('🔧 MIGRATION: User missing publicId, generating...');
+            await _migrateUserPublicId(user.uid, userData);
+          }
+          
           _navigateToDashboard(role);
         } else {
           // User exists in Auth but not in Firestore
@@ -131,6 +187,15 @@ class _LoginScreenState extends State<LoginScreen> {
           // New Google user - create profile with role-specific public ID
           print('📄 GOOGLE LOGIN - Creating new Firestore document');
           
+          // Add debug logging before Firestore write
+          print("AUTH UID: ${FirebaseAuth.instance.currentUser?.uid}");
+          print("Writing to users/${user.uid}");
+          
+          // Ensure we're using the authenticated user's UID
+          if (FirebaseAuth.instance.currentUser?.uid != user.uid) {
+            throw Exception('UID mismatch in Google sign-in');
+          }
+          
           final userData = await PublicIdService.createUserDataWithPublicId(
             uid: user.uid,
             fullName: user.displayName ?? '',
@@ -144,8 +209,8 @@ class _LoginScreenState extends State<LoginScreen> {
 
           await FirebaseFirestore.instance
               .collection('users')
-              .doc(user.uid)
-              .set(userData);
+              .doc(FirebaseAuth.instance.currentUser!.uid)
+              .set(userData, SetOptions(merge: true));
           
           print('✅ GOOGLE LOGIN - New user created with role: ${widget.selectedRole}');
           _navigateToDashboard(widget.selectedRole);
@@ -161,30 +226,36 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   void _navigateToDashboard(String? role) {
+    print("🚀 NAVIGATION - Logged in UID: ${FirebaseAuth.instance.currentUser?.uid}");
+    print("🚀 NAVIGATION - Role from Firestore: $role");
+    
     Widget dashboard;
     
     switch (role) {
       case 'engineer':
+      case 'projectEngineer':
+        print("✅ NAVIGATION - Going to Engineer Dashboard");
         dashboard = const EngineerDashboard();
         break;
       case 'manager':
+      case 'fieldManager':
+        print("✅ NAVIGATION - Going to Manager Dashboard");
         dashboard = const FieldManagerDashboard();
         break;
       case 'owner':
-        dashboard = const OwnerDashboard();
-        break;
-      // Legacy role mappings
-      case 'projectEngineer':
-        dashboard = const EngineerDashboard();
-        break;
-      case 'fieldManager':
-        dashboard = const FieldManagerDashboard();
-        break;
       case 'ownerClient':
+        print("✅ NAVIGATION - Going to Owner Dashboard");
         dashboard = const OwnerDashboard();
         break;
       default:
-        dashboard = const EngineerDashboard();
+        // No valid role found - this should not happen in normal flow
+        print("⚠️ NAVIGATION - Invalid role '$role' - user needs to complete onboarding");
+        // Navigate to welcome screen for role selection
+        Navigator.of(context).pushAndRemoveUntil(
+          MaterialPageRoute(builder: (_) => const WelcomeScreen()),
+          (route) => false,
+        );
+        return;
     }
 
     Navigator.of(context).pushAndRemoveUntil(

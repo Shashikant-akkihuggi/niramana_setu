@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'dart:ui' as ui;
+import 'dart:async';
 import '../common/models/project_model.dart';
 import '../common/services/firestore_service.dart';
 import '../common/widgets/loading_overlay.dart';
@@ -18,12 +19,17 @@ class CreateProjectScreen extends StatefulWidget {
 class _CreateProjectScreenState extends State<CreateProjectScreen> with LoadingStateMixin {
   final _formKey = GlobalKey<FormState>();
   final _projectNameController = TextEditingController();
+  final _ownerIdController = TextEditingController();
+  final _managerIdController = TextEditingController();
 
   UserData? _selectedOwner;
   UserData? _selectedManager;
-  List<UserData> _availableOwners = [];
-  List<UserData> _availableManagers = [];
-  bool _isLoadingUsers = false;
+  bool _isValidatingOwner = false;
+  bool _isValidatingManager = false;
+  String? _ownerValidationError;
+  String? _managerValidationError;
+  Timer? _ownerDebounceTimer;
+  Timer? _managerDebounceTimer;
 
   static const Color primary = Color(0xFF136DEC);
   static const Color accent = Color(0xFF7A5AF8);
@@ -31,36 +37,16 @@ class _CreateProjectScreenState extends State<CreateProjectScreen> with LoadingS
   @override
   void initState() {
     super.initState();
-    _loadAvailableUsers();
-  }
-
-  Future<void> _loadAvailableUsers() async {
-    setState(() => _isLoadingUsers = true);
-
-    try {
-      final results = await Future.wait([
-        ProjectReassignmentService.getAvailableUsersByRole('owner'),
-        ProjectReassignmentService.getAvailableUsersByRole('manager'),
-      ]);
-
-      if (mounted) {
-        setState(() {
-          _availableOwners = results[0];
-          _availableManagers = results[1];
-          _isLoadingUsers = false;
-        });
-      }
-    } catch (e) {
-      if (mounted) {
-        setState(() => _isLoadingUsers = false);
-        _showError('Failed to load users: ${e.toString()}');
-      }
-    }
+    // No need to load users upfront - validation happens on-demand
   }
 
   @override
   void dispose() {
     _projectNameController.dispose();
+    _ownerIdController.dispose();
+    _managerIdController.dispose();
+    _ownerDebounceTimer?.cancel();
+    _managerDebounceTimer?.cancel();
     super.dispose();
   }
 
@@ -177,25 +163,25 @@ class _CreateProjectScreenState extends State<CreateProjectScreen> with LoadingS
                                   ),
                                   const SizedBox(height: 16),
 
-                                  // Owner Selection
-                                  _buildUserDropdown(
-                                    label: 'Select Owner',
+                                  // Owner ID Input
+                                  _buildIdInputField(
+                                    label: 'Owner ID',
+                                    controller: _ownerIdController,
                                     icon: Icons.person,
-                                    users: _availableOwners,
-                                    selectedUser: _selectedOwner,
-                                    onChanged: (user) => setState(() => _selectedOwner = user),
-                                    isLoading: _isLoadingUsers,
+                                    isValidating: _isValidatingOwner,
+                                    validationError: _ownerValidationError,
+                                    onChanged: _validateOwnerId,
                                   ),
                                   const SizedBox(height: 16),
 
-                                  // Manager Selection
-                                  _buildUserDropdown(
-                                    label: 'Select Manager',
+                                  // Manager ID Input
+                                  _buildIdInputField(
+                                    label: 'Manager ID',
+                                    controller: _managerIdController,
                                     icon: Icons.manage_accounts,
-                                    users: _availableManagers,
-                                    selectedUser: _selectedManager,
-                                    onChanged: (user) => setState(() => _selectedManager = user),
-                                    isLoading: _isLoadingUsers,
+                                    isValidating: _isValidatingManager,
+                                    validationError: _managerValidationError,
+                                    onChanged: _validateManagerId,
                                   ),
                                   const SizedBox(height: 24),
 
@@ -213,7 +199,7 @@ class _CreateProjectScreenState extends State<CreateProjectScreen> with LoadingS
                                         SizedBox(width: 8),
                                         Expanded(
                                           child: Text(
-                                            'Validate IDs first to ensure they exist and have correct roles. The project will be created with "Pending Owner Approval" status.',
+                                            'Enter Owner and Manager IDs to validate them automatically. IDs will be checked against Firestore to ensure they exist and have correct roles.',
                                             style: TextStyle(
                                               fontSize: 12,
                                               color: Color(0xFF0369A1),
@@ -263,7 +249,12 @@ class _CreateProjectScreenState extends State<CreateProjectScreen> with LoadingS
   }
 
   bool _canCreateProject() {
-    return _selectedOwner != null && _selectedManager != null && !_isLoadingUsers;
+    return _selectedOwner != null && 
+           _selectedManager != null && 
+           !_isValidatingOwner && 
+           !_isValidatingManager &&
+           _ownerValidationError == null &&
+           _managerValidationError == null;
   }
 
   Future<void> _createProject() async {
@@ -328,13 +319,140 @@ class _CreateProjectScreenState extends State<CreateProjectScreen> with LoadingS
     );
   }
 
-  Widget _buildUserDropdown({
+  /// Validate Owner ID by checking Firestore (with debouncing)
+  void _validateOwnerId(String ownerId) {
+    _ownerDebounceTimer?.cancel();
+    
+    if (ownerId.trim().isEmpty) {
+      setState(() {
+        _selectedOwner = null;
+        _ownerValidationError = null;
+        _isValidatingOwner = false;
+      });
+      return;
+    }
+
+    _ownerDebounceTimer = Timer(const Duration(milliseconds: 500), () {
+      _performOwnerValidation(ownerId.trim());
+    });
+  }
+
+  /// Perform actual owner validation
+  Future<void> _performOwnerValidation(String ownerId) async {
+    setState(() {
+      _isValidatingOwner = true;
+      _ownerValidationError = null;
+    });
+
+    print('🔍 Validating Owner ID: $ownerId');
+
+    try {
+      final validation = await UserService.validateSingleUser(
+        publicId: ownerId,
+        expectedRole: 'ownerClient',
+      );
+
+      if (mounted) {
+        if (validation['success']) {
+          final owner = validation['user'] as UserData;
+          setState(() {
+            _selectedOwner = owner;
+            _ownerValidationError = null;
+            _isValidatingOwner = false;
+          });
+          print('✅ Owner validated: ${owner.fullName} (${owner.uid})');
+        } else {
+          setState(() {
+            _selectedOwner = null;
+            _ownerValidationError = validation['error'];
+            _isValidatingOwner = false;
+          });
+          print('❌ Owner validation failed: ${validation['error']}');
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _selectedOwner = null;
+          _ownerValidationError = 'Validation failed: ${e.toString()}';
+          _isValidatingOwner = false;
+        });
+        print('❌ Owner validation error: $e');
+      }
+    }
+  }
+
+  /// Validate Manager ID by checking Firestore (with debouncing)
+  void _validateManagerId(String managerId) {
+    _managerDebounceTimer?.cancel();
+    
+    if (managerId.trim().isEmpty) {
+      setState(() {
+        _selectedManager = null;
+        _managerValidationError = null;
+        _isValidatingManager = false;
+      });
+      return;
+    }
+
+    _managerDebounceTimer = Timer(const Duration(milliseconds: 500), () {
+      _performManagerValidation(managerId.trim());
+    });
+  }
+
+  /// Perform actual manager validation
+  Future<void> _performManagerValidation(String managerId) async {
+    setState(() {
+      _isValidatingManager = true;
+      _managerValidationError = null;
+    });
+
+    print('🔍 Validating Manager ID: $managerId');
+
+    try {
+      final validation = await UserService.validateSingleUser(
+        publicId: managerId,
+        expectedRole: 'manager',
+      );
+
+      if (mounted) {
+        if (validation['success']) {
+          final manager = validation['user'] as UserData;
+          setState(() {
+            _selectedManager = manager;
+            _managerValidationError = null;
+            _isValidatingManager = false;
+          });
+          print('✅ Manager validated: ${manager.fullName} (${manager.uid})');
+        } else {
+          setState(() {
+            _selectedManager = null;
+            _managerValidationError = validation['error'];
+            _isValidatingManager = false;
+          });
+          print('❌ Manager validation failed: ${validation['error']}');
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _selectedManager = null;
+          _managerValidationError = 'Validation failed: ${e.toString()}';
+          _isValidatingManager = false;
+        });
+        print('❌ Manager validation error: $e');
+      }
+    }
+  }
+
+  /// Build ID input field with validation
+  Widget _buildIdInputField({
     required String label,
+    required TextEditingController controller,
     required IconData icon,
-    required List<UserData> users,
-    required UserData? selectedUser,
-    required ValueChanged<UserData?> onChanged,
-    required bool isLoading,
+    required bool isValidating,
+    required String? validationError,
+    required Function(String) onChanged,
   }) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -348,83 +466,41 @@ class _CreateProjectScreenState extends State<CreateProjectScreen> with LoadingS
           ),
         ),
         const SizedBox(height: 8),
-        Container(
-          decoration: BoxDecoration(
-            border: Border.all(color: Colors.grey[300]!),
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: isLoading
-              ? const Padding(
-                  padding: EdgeInsets.all(16),
-                  child: Row(
-                    children: [
-                      SizedBox(
-                        width: 20,
-                        height: 20,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      ),
-                      SizedBox(width: 12),
-                      Text('Loading users...'),
-                    ],
-                  ),
-                )
-              : users.isEmpty
-                  ? Padding(
-                      padding: const EdgeInsets.all(16),
-                      child: Row(
-                        children: [
-                          Icon(Icons.warning, color: Colors.orange[600]),
-                          const SizedBox(width: 12),
-                          Text('No ${label.toLowerCase()}s available'),
-                        ],
-                      ),
-                    )
-                  : DropdownButtonFormField<UserData>(
-                      value: selectedUser,
-                      decoration: InputDecoration(
-                        prefixIcon: Icon(icon),
-                        border: InputBorder.none,
-                        contentPadding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 16,
-                        ),
-                      ),
-                      hint: Text('Select ${label.toLowerCase()}'),
-                      items: users.map((user) {
-                        return DropdownMenuItem<UserData>(
-                          value: user,
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Text(
-                                user.fullName,
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                              if (user.publicId != null)
-                                Text(
-                                  'ID: ${user.publicId}',
-                                  style: TextStyle(
-                                    fontSize: 12,
-                                    color: Colors.grey[600],
-                                  ),
-                                ),
-                            ],
-                          ),
-                        );
-                      }).toList(),
-                      onChanged: onChanged,
-                      validator: (value) {
-                        if (value == null) {
-                          return 'Please select a ${label.toLowerCase()}';
-                        }
-                        return null;
-                      },
+        TextFormField(
+          controller: controller,
+          decoration: InputDecoration(
+            hintText: 'Enter ${label.toLowerCase()}',
+            border: const OutlineInputBorder(),
+            prefixIcon: Icon(icon),
+            suffixIcon: isValidating
+                ? const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: Padding(
+                      padding: EdgeInsets.all(12),
+                      child: CircularProgressIndicator(strokeWidth: 2),
                     ),
+                  )
+                : validationError == null && controller.text.isNotEmpty
+                    ? const Icon(Icons.check_circle, color: Colors.green)
+                    : validationError != null
+                        ? const Icon(Icons.error, color: Colors.red)
+                        : null,
+            errorText: validationError,
+          ),
+          onChanged: onChanged,
+          validator: (value) {
+            if (value == null || value.trim().isEmpty) {
+              return 'Please enter ${label.toLowerCase()}';
+            }
+            if (validationError != null) {
+              return validationError;
+            }
+            return null;
+          },
         ),
       ],
     );
   }
+
 }

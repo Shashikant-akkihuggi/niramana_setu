@@ -174,7 +174,71 @@ class UserService {
     return await getUserByUid(currentUser.uid);
   }
 
-  /// Validate project users by their public IDs
+  /// Validate a single user by their public ID
+  static Future<Map<String, dynamic>> validateSingleUser({
+    required String publicId,
+    required String expectedRole, // 'ownerClient' or 'manager'
+  }) async {
+    try {
+      print('🔍 UserService.validateSingleUser - publicId: $publicId, expectedRole: $expectedRole');
+      
+      // Query user by their public ID
+      final userQuery = await _firestore
+          .collection('users')
+          .where('publicId', isEqualTo: publicId.trim())
+          .limit(1)
+          .get();
+
+      print('📊 UserService.validateSingleUser - Query returned ${userQuery.docs.length} documents');
+
+      if (userQuery.docs.isEmpty) {
+        print('❌ UserService.validateSingleUser - No user found with publicId: $publicId');
+        return {
+          'success': false,
+          'error': 'User ID not found',
+        };
+      }
+
+      final userDoc = userQuery.docs.first;
+      final userData = UserData.fromFirestore(userDoc);
+      
+      print('✅ UserService.validateSingleUser - Found user: ${userData.fullName} (${userData.uid}) with role: ${userData.role}');
+
+      // Cache the result
+      _userCache[userData.uid] = userData;
+      _cacheTimestamps[userData.uid] = DateTime.now();
+
+      // Validate role
+      bool roleValid = false;
+      if (expectedRole == 'ownerClient') {
+        roleValid = userData.role == 'owner' || userData.role == 'ownerClient';
+      } else if (expectedRole == 'manager') {
+        roleValid = userData.role == 'manager' || userData.role == 'fieldManager';
+      }
+
+      if (!roleValid) {
+        print('❌ UserService.validateSingleUser - Role mismatch. Expected: $expectedRole, Got: ${userData.role}');
+        return {
+          'success': false,
+          'error': 'User with ID $publicId is not registered as ${expectedRole == 'ownerClient' ? 'an Owner' : 'a Manager'}',
+        };
+      }
+
+      print('✅ UserService.validateSingleUser - Validation successful');
+      return {
+        'success': true,
+        'user': userData,
+      };
+    } catch (e) {
+      print('❌ UserService.validateSingleUser error: $e');
+      return {
+        'success': false,
+        'error': 'Failed to validate user ID: ${e.toString()}',
+      };
+    }
+  }
+
+  /// Validate project users by their public IDs (for backward compatibility)
   /// Returns a map with success status and user data or error message
   static Future<Map<String, dynamic>> validateProjectUsers({
     required String ownerId,
@@ -228,15 +292,15 @@ class UserService {
         };
       }
 
-      // Validate roles
-      if (owner.role != 'owner') {
+      // Validate roles - handle both 'owner' and 'ownerClient'
+      if (owner.role != 'owner' && owner.role != 'ownerClient') {
         return {
           'success': false,
           'error': 'User with Owner ID is not registered as an Owner',
         };
       }
 
-      if (manager.role != 'manager') {
+      if (manager.role != 'manager' && manager.role != 'fieldManager') {
         return {
           'success': false,
           'error': 'User with Manager ID is not registered as a Manager',

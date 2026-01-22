@@ -132,6 +132,22 @@ class _OnboardingStep1IdentityState extends State<OnboardingStep1Identity> {
   }
 
   Future<void> _createFirestoreDocument(String uid) async {
+    // Add debug logging before Firestore write
+    print("AUTH UID: ${FirebaseAuth.instance.currentUser?.uid}");
+    print("Writing to users/$uid");
+    
+    // Ensure we're using the authenticated user's UID
+    final currentUser = FirebaseAuth.instance.currentUser;
+    if (currentUser == null) {
+      throw Exception('User not authenticated - cannot create Firestore document');
+    }
+    
+    if (currentUser.uid != uid) {
+      throw Exception('UID mismatch: Auth UID (${currentUser.uid}) != passed UID ($uid)');
+    }
+    
+    print('🎯 Creating Firestore document for user: $uid with role: ${widget.role}');
+    
     // Use PublicIdService to create user data with role-specific public ID
     final userData = await PublicIdService.createUserDataWithPublicId(
       uid: uid,
@@ -144,12 +160,19 @@ class _OnboardingStep1IdentityState extends State<OnboardingStep1Identity> {
       isActive: false,
     );
 
+    // Use current authenticated user's UID and merge: true for step 1
     await FirebaseFirestore.instance
         .collection('users')
-        .doc(uid)
-        .set(userData);
+        .doc(FirebaseAuth.instance.currentUser!.uid)
+        .set(userData, SetOptions(merge: true));
         
-    print('✅ Created Firestore document for user: $uid with role: ${widget.role}');
+    print('✅ Created Firestore document for user: ${FirebaseAuth.instance.currentUser!.uid}');
+    print('📝 User data: ${userData['fullName']} (${userData['role']})');
+    print('🆔 Generated publicId: ${userData['publicId']}');
+    
+    // Log role-specific field
+    final roleField = PublicIdService.getRolePublicIdField(widget.role);
+    print('📋 Role-specific field: $roleField = ${userData[roleField]}');
   }
 
   void _navigateToNextStep() {
