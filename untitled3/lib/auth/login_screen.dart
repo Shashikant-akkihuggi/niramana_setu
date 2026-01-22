@@ -493,6 +493,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       const Text('New here? '),
                       TextButton(
                         onPressed: () {
+                          print('🎯 LOGIN SCREEN - Create Account button clicked, navigating to RegisterScreen with role: ${widget.selectedRole}');
                           Navigator.of(context).push(
                             MaterialPageRoute(
                               builder: (_) => RegisterScreen(selectedRole: widget.selectedRole),

@@ -135,6 +135,7 @@ class _OnboardingStep1IdentityState extends State<OnboardingStep1Identity> {
     // Add debug logging before Firestore write
     print("AUTH UID: ${FirebaseAuth.instance.currentUser?.uid}");
     print("Writing to users/$uid");
+    print("🎯 ONBOARDING STEP 1 - Selected Role: ${widget.role}");
     
     // Ensure we're using the authenticated user's UID
     final currentUser = FirebaseAuth.instance.currentUser;
@@ -160,6 +161,11 @@ class _OnboardingStep1IdentityState extends State<OnboardingStep1Identity> {
       isActive: false,
     );
 
+    print('📝 ONBOARDING STEP 1 - User data before Firestore write:');
+    print('   - Role: ${userData['role']}');
+    print('   - PublicId: ${userData['publicId']}');
+    print('   - FullName: ${userData['fullName']}');
+
     // Use current authenticated user's UID and merge: true for step 1
     await FirebaseFirestore.instance
         .collection('users')
@@ -173,6 +179,20 @@ class _OnboardingStep1IdentityState extends State<OnboardingStep1Identity> {
     // Log role-specific field
     final roleField = PublicIdService.getRolePublicIdField(widget.role);
     print('📋 Role-specific field: $roleField = ${userData[roleField]}');
+    
+    // Verify what was actually written to Firestore
+    final verifyDoc = await FirebaseFirestore.instance
+        .collection('users')
+        .doc(FirebaseAuth.instance.currentUser!.uid)
+        .get();
+    
+    if (verifyDoc.exists) {
+      final verifyData = verifyDoc.data()!;
+      print('🔍 VERIFICATION - Data actually written to Firestore:');
+      print('   - Role: ${verifyData['role']}');
+      print('   - PublicId: ${verifyData['publicId']}');
+      print('   - FullName: ${verifyData['fullName']}');
+    }
   }
 
   void _navigateToNextStep() {

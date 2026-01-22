@@ -46,6 +46,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
     setState(() => _isLoading = true);
 
+    print('🎯 REGISTER SCREEN - Selected Role: ${widget.selectedRole}');
+    print('📧 REGISTER SCREEN - Email: ${_emailController.text.trim()}');
+
     // Navigate to onboarding with role, email, and password
     // The actual Firebase Auth account creation will happen in onboarding step 1
     Navigator.of(context).pushReplacement(

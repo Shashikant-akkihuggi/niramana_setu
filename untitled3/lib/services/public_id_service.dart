@@ -78,9 +78,14 @@ class PublicIdService {
     int profileCompletion = 40,
     bool isActive = false,
   }) async {
+    print('🎯 PUBLIC_ID_SERVICE - Creating user data with role: $role');
+    
     // Generate unique public ID
     final publicId = await generateUniquePublicId(fullName, role);
     final rolePublicIdField = getRolePublicIdField(role);
+    
+    print('🎯 PUBLIC_ID_SERVICE - Generated publicId: $publicId');
+    print('🎯 PUBLIC_ID_SERVICE - Role-specific field: $rolePublicIdField');
     
     // Create base user data
     final userData = <String, dynamic>{
@@ -101,8 +106,8 @@ class PublicIdService {
     // Add role-specific public ID field
     userData[rolePublicIdField] = publicId;
 
-    print('🎯 Created user data for $role with public ID: $publicId');
-    print('📝 Role-specific field: $rolePublicIdField');
+    print('🎯 PUBLIC_ID_SERVICE - Final userData role: ${userData['role']}');
+    print('📝 PUBLIC_ID_SERVICE - Role-specific field: $rolePublicIdField');
     
     return userData;
   }

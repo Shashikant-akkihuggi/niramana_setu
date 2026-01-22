@@ -730,6 +730,7 @@ class RoleSelectionScreen extends StatelessWidget {
                             );
                           } else {
                             // Not logged in, go to login screen
+                            print('🎯 WELCOME SCREEN - Owner button clicked, navigating to LoginScreen with role: ownerClient');
                             Navigator.of(context).push(
                               MaterialPageRoute(
                                 builder: (_) => const LoginScreen(
