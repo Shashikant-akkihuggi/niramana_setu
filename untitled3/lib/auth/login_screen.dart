@@ -8,6 +8,8 @@ import '../engineer/engineer_dashboard.dart';
 import '../manager/manager.dart';
 import '../owner/owner.dart';
 import '../main.dart';
+import '../common/localization/language_controller.dart';
+import '../common/localization/language_keys.dart';
 import 'register_screen.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -27,6 +29,7 @@ class _LoginScreenState extends State<LoginScreen> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   final _authService = AuthService();
+  final _langController = LanguageController();
   bool _obscurePassword = true;
   bool _isLoading = false;
 
@@ -131,24 +134,24 @@ class _LoginScreenState extends State<LoginScreen> {
         }
       }
     } catch (e) {
-      String errorMessage = 'Login failed. Please check your credentials.';
+      String errorMessage = _langController.t(LangKeys.loginFailed);
       if (e is FirebaseAuthException) {
         switch (e.code) {
           case 'user-not-found':
-            errorMessage = 'No account found with this email.';
+            errorMessage = _langController.t(LangKeys.noAccountFound);
             break;
           case 'wrong-password':
           case 'invalid-credential':
-            errorMessage = 'Invalid email or password.';
+            errorMessage = _langController.t(LangKeys.invalidCredentials);
             break;
           case 'invalid-email':
-            errorMessage = 'Invalid email address.';
+            errorMessage = _langController.t(LangKeys.invalidEmailAddress);
             break;
           case 'user-disabled':
-            errorMessage = 'This account has been disabled.';
+            errorMessage = _langController.t(LangKeys.accountDisabled);
             break;
           default:
-            errorMessage = 'Login failed. Please try again.';
+            errorMessage = _langController.t(LangKeys.loginFailed);
         }
       }
       _showErrorSnackBar(errorMessage);
@@ -217,7 +220,7 @@ class _LoginScreenState extends State<LoginScreen> {
         }
       }
     } catch (e) {
-      _showErrorSnackBar('Google sign-in failed. Please try again.');
+      _showErrorSnackBar(_langController.t(LangKeys.googleSignInFailed));
     } finally {
       if (mounted) {
         setState(() => _isLoading = false);
@@ -278,7 +281,10 @@ class _LoginScreenState extends State<LoginScreen> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
-    return Scaffold(
+    return ListenableBuilder(
+      listenable: _langController,
+      builder: (context, child) {
+        return Scaffold(
       body: Stack(
         children: [
           // Background gradient
@@ -346,7 +352,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       ),
                       const SizedBox(height: 12),
                       Text(
-                        'Niramana Setu',
+                        _langController.t(LangKeys.appName),
                         style: theme.textTheme.headlineSmall?.copyWith(
                           fontWeight: FontWeight.w800,
                           color: const Color(0xFF1F1F1F),
@@ -355,7 +361,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       ),
                       const SizedBox(height: 6),
                       Text(
-                        'Welcome back, ${_getRoleDisplayName(widget.selectedRole)}',
+                        '${_langController.t(LangKeys.login)} - ${_getRoleDisplayName(widget.selectedRole)}',
                         style: theme.textTheme.bodyLarge?.copyWith(
                           color: const Color(0xFF5C5C5C),
                           letterSpacing: 0.1,
@@ -404,15 +410,15 @@ class _LoginScreenState extends State<LoginScreen> {
                                 // Email Field
                                 _buildGlassTextField(
                                   controller: _emailController,
-                                  hint: 'Email',
+                                  hint: _langController.t(LangKeys.email),
                                   icon: Icons.alternate_email,
                                   keyboardType: TextInputType.emailAddress,
                                   validator: (value) {
                                     if (value == null || value.trim().isEmpty) {
-                                      return 'Enter your email';
+                                      return _langController.t(LangKeys.enterYourEmail);
                                     }
                                     if (!RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(value)) {
-                                      return 'Enter a valid email address';
+                                      return _langController.t(LangKeys.invalidEmail);
                                     }
                                     return null;
                                   },
@@ -422,7 +428,7 @@ class _LoginScreenState extends State<LoginScreen> {
                                 // Password Field
                                 _buildGlassTextField(
                                   controller: _passwordController,
-                                  hint: 'Password',
+                                  hint: _langController.t(LangKeys.password),
                                   icon: Icons.lock_outline,
                                   obscureText: _obscurePassword,
                                   suffix: IconButton(
@@ -438,7 +444,7 @@ class _LoginScreenState extends State<LoginScreen> {
                                   ),
                                   validator: (value) {
                                     if (value == null || value.isEmpty) {
-                                      return 'Enter your password';
+                                      return _langController.t(LangKeys.enterYourPassword);
                                     }
                                     return null;
                                   },
@@ -447,7 +453,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
                                 // Login Button
                                 _GlowingButton(
-                                  text: _isLoading ? 'Signing in...' : 'Sign In',
+                                  text: _isLoading ? _langController.t(LangKeys.pleaseWait) : _langController.t(LangKeys.logIn),
                                   onTap: _isLoading ? null : _loginWithEmail,
                                 ),
                                 
@@ -460,7 +466,7 @@ class _LoginScreenState extends State<LoginScreen> {
                                     Padding(
                                       padding: const EdgeInsets.symmetric(horizontal: 16),
                                       child: Text(
-                                        'or continue with',
+                                        _langController.t(LangKeys.orContinueWith),
                                         style: TextStyle(color: Colors.grey[600]),
                                       ),
                                     ),
@@ -473,7 +479,7 @@ class _LoginScreenState extends State<LoginScreen> {
                                 // Google Sign In Button
                                 _GlassActionButton(
                                   icon: Icons.g_mobiledata,
-                                  label: 'Continue with Google',
+                                  label: _langController.t(LangKeys.google),
                                   onTap: _isLoading ? null : _loginWithGoogle,
                                 ),
                               ],
@@ -490,7 +496,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      const Text('New here? '),
+                      Text(_langController.t(LangKeys.newHere)),
                       TextButton(
                         onPressed: () {
                           print('🎯 LOGIN SCREEN - Create Account button clicked, navigating to RegisterScreen with role: ${widget.selectedRole}');
@@ -503,7 +509,7 @@ class _LoginScreenState extends State<LoginScreen> {
                         style: TextButton.styleFrom(
                           foregroundColor: const Color(0xFF4B4B4B),
                         ),
-                        child: const Text('Create account'),
+                        child: Text(_langController.t(LangKeys.createAccount)),
                       ),
                     ],
                   ),
@@ -513,6 +519,8 @@ class _LoginScreenState extends State<LoginScreen> {
           ),
         ],
       ),
+    );
+      },
     );
   }
 
@@ -560,12 +568,12 @@ class _LoginScreenState extends State<LoginScreen> {
   String _getRoleDisplayName(String role) {
     switch (role) {
       case 'engineer':
-        return 'Engineer';
+        return _langController.t(LangKeys.projectEngineer);
       case 'manager':
-        return 'Manager';
+        return _langController.t(LangKeys.fieldManager);
       case 'owner':
       case 'ownerClient':
-        return 'Owner';
+        return _langController.t(LangKeys.ownerClient);
       default:
         return 'User';
     }

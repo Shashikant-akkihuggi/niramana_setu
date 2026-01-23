@@ -152,6 +152,8 @@ class LangKeys {
   static const english = "english";
   static const hindi = "hindi";
   static const kannada = "kannada";
+  static const marathi = "marathi";
+  static const tamil = "tamil";
 
   // Common Actions
   static const submit = "submit";

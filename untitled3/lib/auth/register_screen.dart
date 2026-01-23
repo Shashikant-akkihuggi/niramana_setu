@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'dart:ui' as ui;
+import '../common/localization/language_controller.dart';
+import '../common/localization/language_keys.dart';
 import 'onboarding/onboarding_step1_identity.dart';
 
 class RegisterScreen extends StatefulWidget {
@@ -19,6 +21,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
+  final _langController = LanguageController();
   
   bool _obscurePassword = true;
   bool _obscureConfirmPassword = true;
@@ -40,7 +43,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
     if (!_formKey.currentState!.validate()) return;
     
     if (!_agreedToTerms) {
-      _showErrorSnackBar('Please accept the Terms & Privacy Policy');
+      _showErrorSnackBar(_langController.t(LangKeys.pleaseAcceptTerms));
       return;
     }
 
@@ -76,7 +79,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
-    return Scaffold(
+    return ListenableBuilder(
+      listenable: _langController,
+      builder: (context, child) {
+        return Scaffold(
       body: Stack(
         children: [
           // Background gradient
@@ -143,7 +149,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       ),
                       const SizedBox(height: 12),
                       Text(
-                        'Niramana Setu',
+                        _langController.t(LangKeys.appName),
                         style: theme.textTheme.headlineSmall?.copyWith(
                           fontWeight: FontWeight.w800,
                           color: const Color(0xFF1F1F1F),
@@ -152,7 +158,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       ),
                       const SizedBox(height: 6),
                       Text(
-                        'Create your ${_getRoleDisplayName(widget.selectedRole)} account',
+                        '${_langController.t(LangKeys.createAccount)} - ${_getRoleDisplayName(widget.selectedRole)}',
                         style: theme.textTheme.bodyLarge?.copyWith(
                           color: const Color(0xFF5C5C5C),
                           letterSpacing: 0.1,
@@ -201,15 +207,15 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                 // Email Field
                                 _buildGlassTextField(
                                   controller: _emailController,
-                                  hint: 'Email Address',
+                                  hint: _langController.t(LangKeys.email),
                                   icon: Icons.alternate_email,
                                   keyboardType: TextInputType.emailAddress,
                                   validator: (value) {
                                     if (value == null || value.trim().isEmpty) {
-                                      return 'Email is required';
+                                      return _langController.t(LangKeys.emailRequired);
                                     }
                                     if (!RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(value)) {
-                                      return 'Enter a valid email address';
+                                      return _langController.t(LangKeys.invalidEmail);
                                     }
                                     return null;
                                   },
@@ -219,7 +225,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                 // Password Field
                                 _buildGlassTextField(
                                   controller: _passwordController,
-                                  hint: 'Password',
+                                  hint: _langController.t(LangKeys.password),
                                   icon: Icons.lock_outline,
                                   obscureText: _obscurePassword,
                                   suffix: IconButton(
@@ -235,10 +241,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                   ),
                                   validator: (value) {
                                     if (value == null || value.isEmpty) {
-                                      return 'Password is required';
+                                      return _langController.t(LangKeys.enterYourPassword);
                                     }
                                     if (value.length < 6) {
-                                      return 'Password must be at least 6 characters';
+                                      return _langController.t(LangKeys.passwordMinLength);
                                     }
                                     return null;
                                   },
@@ -248,7 +254,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                 // Confirm Password Field
                                 _buildGlassTextField(
                                   controller: _confirmPasswordController,
-                                  hint: 'Confirm Password',
+                                  hint: _langController.t(LangKeys.confirmPassword),
                                   icon: Icons.lock_outline,
                                   obscureText: _obscureConfirmPassword,
                                   suffix: IconButton(
@@ -264,10 +270,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                   ),
                                   validator: (value) {
                                     if (value == null || value.isEmpty) {
-                                      return 'Please confirm your password';
+                                      return _langController.t(LangKeys.confirmPassword);
                                     }
                                     if (value != _passwordController.text) {
-                                      return 'Passwords do not match';
+                                      return _langController.t(LangKeys.passwordsDoNotMatch);
                                     }
                                     return null;
                                   },
@@ -288,10 +294,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                         borderRadius: BorderRadius.circular(4),
                                       ),
                                     ),
-                                    const Expanded(
+                                    Expanded(
                                       child: Text(
-                                        'I agree to Terms & Privacy Policy',
-                                        style: TextStyle(
+                                        _langController.t(LangKeys.agreeToTerms),
+                                        style: const TextStyle(
                                           color: Color(0xFF3F3F3F),
                                         ),
                                       ),
@@ -302,7 +308,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
                                 // Create Account Button
                                 _GlowingButton(
-                                  text: _isLoading ? 'Please wait...' : 'Create Account',
+                                  text: _isLoading ? _langController.t(LangKeys.pleaseWait) : _langController.t(LangKeys.createAccount),
                                   onTap: _isLoading ? null : _proceedToOnboarding,
                                 ),
                                 
@@ -350,13 +356,13 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      const Text('Already have an account? '),
+                      Text(_langController.t(LangKeys.alreadyHaveAccount)),
                       TextButton(
                         onPressed: () => Navigator.of(context).pop(),
                         style: TextButton.styleFrom(
                           foregroundColor: const Color(0xFF4B4B4B),
                         ),
-                        child: const Text('Sign in'),
+                        child: Text(_langController.t(LangKeys.logIn)),
                       ),
                     ],
                   ),
@@ -366,6 +372,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
           ),
         ],
       ),
+    );
+      },
     );
   }
 
@@ -413,12 +421,12 @@ class _RegisterScreenState extends State<RegisterScreen> {
   String _getRoleDisplayName(String role) {
     switch (role) {
       case 'engineer':
-        return 'Engineer';
+        return _langController.t(LangKeys.projectEngineer);
       case 'manager':
-        return 'Manager';
+        return _langController.t(LangKeys.fieldManager);
       case 'owner':
       case 'ownerClient':
-        return 'Owner';
+        return _langController.t(LangKeys.ownerClient);
       default:
         return 'User';
     }

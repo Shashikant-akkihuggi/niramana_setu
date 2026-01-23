@@ -39,6 +39,8 @@ class _LanguageSelectionScreenState extends State<LanguageSelectionScreen> {
     {'code': 'en', 'name': 'English', 'nativeName': 'English'},
     {'code': 'hi', 'name': 'Hindi', 'nativeName': 'हिंदी'},
     {'code': 'kn', 'name': 'Kannada', 'nativeName': 'ಕನ್ನಡ'},
+    {'code': 'mr', 'name': 'Marathi', 'nativeName': 'मराठी'},
+    {'code': 'ta', 'name': 'Tamil', 'nativeName': 'தமிழ்'},
   ];
 
   Future<void> _confirmSelection() async {

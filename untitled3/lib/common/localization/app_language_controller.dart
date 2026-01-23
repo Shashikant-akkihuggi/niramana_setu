@@ -127,6 +127,10 @@ class AppLanguageController extends ChangeNotifier {
         return 'हिंदी';
       case 'kn':
         return 'ಕನ್ನಡ';
+      case 'mr':
+        return 'मराठी';
+      case 'ta':
+        return 'தமிழ்';
       default:
         return languageCode;
     }

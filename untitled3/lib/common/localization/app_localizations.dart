@@ -14,6 +14,8 @@ class AppLocalizations {
     'en': _english,
     'hi': _hindi,
     'kn': _kannada,
+    'mr': _marathi,
+    'ta': _tamil,
   };
 
   /// Get translation for a key in specified language
@@ -22,7 +24,7 @@ class AppLocalizations {
   }
 
   /// Get all supported language codes
-  static List<String> get supportedLanguages => ['en', 'hi', 'kn'];
+  static List<String> get supportedLanguages => ['en', 'hi', 'kn', 'mr', 'ta'];
 
   /// English translations
   static const Map<String, String> _english = {
@@ -168,6 +170,8 @@ class AppLocalizations {
     "english": "English",
     "hindi": "हिंदी",
     "kannada": "ಕನ್ನಡ",
+    "marathi": "मराठी",
+    "tamil": "தமிழ்",
 
     // Common Actions
     "submit": "Submit",
@@ -350,6 +354,8 @@ class AppLocalizations {
     "english": "English",
     "hindi": "हिंदी",
     "kannada": "ಕನ್ನಡ",
+    "marathi": "मराठी",
+    "tamil": "தமிழ்",
 
     // Common Actions
     "submit": "जमा करें",
@@ -532,6 +538,8 @@ class AppLocalizations {
     "english": "English",
     "hindi": "हिंदी",
     "kannada": "ಕನ್ನಡ",
+    "marathi": "मराठी",
+    "tamil": "தமிழ்",
 
     // Common Actions
     "submit": "ಸಲ್ಲಿಸಿ",
@@ -567,5 +575,373 @@ class AppLocalizations {
 
     // Placeholder Screens
     "screen_coming_soon": "ಪರದೆ ಶೀಘ್ರದಲ್ಲೇ ಬರಲಿದೆ...",
+  };
+
+
+  /// Marathi translations
+  static const Map<String, String> _marathi = {
+    // App Name & Branding
+    "app_name": "निर्माण सेतू",
+    "manage_projects": "प्रकल्प व्यवस्थापित करा",
+    "manage_projects_ease": "सहजपणे प्रकल्प व्यवस्थापित करा",
+
+    // Welcome Screen
+    "get_started": "सुरू करा",
+
+    // Role Selection
+    "choose_your_role": "तुमची भूमिका निवडा",
+    "select_how_you_use": "तुम्ही निर्माण सेतू कसा वापरता ते निवडा",
+    "field_manager": "फील्ड मॅनेजर",
+    "field_manager_desc": "साइटवरील कामे व्यवस्थापित करा आणि दैनंदिन कामकाजावर देखरेख ठेवा",
+    "project_engineer": "प्रकल्प अभियंता",
+    "project_engineer_desc": "प्रकल्प योजना तयार करा आणि तांत्रिक अचूकता सुनिश्चित करा",
+    "owner_client": "मालक / ग्राहक",
+    "owner_client_desc": "प्रकल्पाची प्रगती ट्रॅक करा आणि करार व्यवस्थापित करा",
+
+    // Authentication
+    "login": "लॉगिन",
+    "log_in": "लॉग इन करा",
+    "logout": "लॉगआउट",
+    "create_account": "खाते तयार करा",
+    "email": "ईमेल",
+    "password": "पासवर्ड",
+    "confirm_password": "पासवर्डची पुष्टी करा",
+    "full_name": "पूर्ण नाव",
+    "phone": "फोन",
+    "phone_optional": "फोन (ऐच्छिक)",
+    "mobile_number": "मोबाइल नंबर",
+    "forgot_password": "पासवर्ड विसरलात?",
+    "reset_your_password": "तुमचा पासवर्ड रीसेट करा",
+    "enter_email_or_phone": "रीसेट लिंक मिळवण्यासाठी तुमचा ईमेल किंवा फोन प्रविष्ट करा.",
+    "send_reset_link": "रीसेट लिंक पाठवा",
+    "new_here": "येथे नवीन आहात? ",
+    "already_have_account": "आधीच खाते आहे? ",
+    "or_continue_with": "किंवा सुरू ठेवा",
+    "google": "गूगल",
+    "facebook": "फेसबुक",
+    "agree_to_terms": "मी अटी आणि गोपनीयता धोरणाशी सहमत आहे",
+
+    // Validation Messages
+    "enter_your_email": "तुमचा ईमेल प्रविष्ट करा",
+    "enter_your_password": "तुमचा पासवर्ड प्रविष्ट करा",
+    "enter_your_full_name": "तुमचे पूर्ण नाव प्रविष्ट करा",
+    "enter_your_name": "तुमचे नाव प्रविष्ट करा",
+    "password_min_length": "पासवर्ड किमान 6 वर्णांचा असावा",
+    "passwords_do_not_match": "पासवर्ड जुळत नाहीत",
+    "invalid_email": "अवैध ईमेल",
+    "name_required": "नाव आवश्यक आहे",
+    "email_required": "ईमेल आवश्यक आहे",
+
+    // Auth Errors
+    "login_failed": "लॉगिन अयशस्वी. कृपया तुमची माहिती तपासा.",
+    "no_account_found": "या ईमेलसह कोणतेही खाते आढळले नाही.",
+    "incorrect_password": "चुकीचा पासवर्ड.",
+    "invalid_email_address": "अवैध ईमेल पत्ता.",
+    "account_disabled": "हे खाते अक्षम केले आहे.",
+    "invalid_credentials": "अवैध ईमेल किंवा पासवर्ड.",
+    "account_creation_failed": "खाते तयार करणे अयशस्वी. कृपया पुन्हा प्रयत्न करा.",
+    "email_already_in_use": "या ईमेलसह आधीच खाते अस्तित्वात आहे.",
+    "weak_password": "पासवर्ड खूप कमकुवत आहे. किमान 6 वर्ण वापरा.",
+    "google_sign_in_failed": "गूगल साइन-इन अयशस्वी. कृपया पुन्हा प्रयत्न करा.",
+    "logout_failed": "लॉगआउट अयशस्वी. कृपया पुन्हा प्रयत्न करा.",
+    "please_accept_terms": "कृपया अटी आणि गोपनीयता धोरण स्वीकारा",
+
+    // Loading States
+    "please_wait": "कृपया प्रतीक्षा करा...",
+    "loading": "लोड होत आहे...",
+
+    // Dashboard Common
+    "dashboard": "डॅशबोर्ड",
+    "home": "होम",
+    "profile": "प्रोफाइल",
+    "notifications": "सूचना",
+    "settings": "सेटिंग्ज",
+
+    // Owner Dashboard
+    "owner_dashboard": "मालक डॅशबोर्ड",
+    "investment_transparency": "गुंतवणूक पारदर्शकता आणि प्रकल्प विहंगावलोकन",
+    "total_investment": "एकूण गुंतवणूक",
+    "amount_spent": "खर्च केलेली रक्कम",
+    "remaining_budget": "उर्वरित बजेट",
+    "overall_progress": "एकूण प्रगती",
+    "progress_gallery": "प्रगती गॅलरी",
+    "billing_gst_invoices": "बिलिंग आणि जीएसटी बीजक",
+    "plot_planning": "प्लॉट नियोजन",
+    "project_status_dashboard": "प्रकल्प स्थिती डॅशबोर्ड",
+    "direct_communication": "थेट संवाद",
+    "milestones": "टप्पे",
+    "gallery": "गॅलरी",
+    "invoices": "बीजक",
+
+    // Engineer Dashboard
+    "engineer_dashboard": "अभियंता डॅशबोर्ड",
+    "verification_quality_overview": "पडताळणी आणि गुणवत्ता विहंगावलोकन",
+    "offline_will_sync_later": "ऑफलाइन – नंतर समक्रमित होईल",
+    "offline_items_pending_sync": "ऑफलाइन आयटम समक्रमण प्रलंबित",
+    "pending_approvals": "प्रलंबित मंजुरी",
+    "photos_to_review": "पुनरावलोकनासाठी फोटो",
+    "delayed_milestones": "विलंबित टप्पे",
+    "material_requests": "साहित्य विनंत्या",
+    "review_dprs": "डीपीआर पुनरावलोकन करा",
+    "material_approvals": "साहित्य मंजुरी",
+    "project_details": "प्रकल्प तपशील",
+    "plot_reviews": "प्लॉट पुनरावलोकन",
+    "materials": "साहित्य",
+    "approvals": "मंजुरी",
+
+    // Manager Dashboard
+    "field_manager_dashboard": "फील्ड मॅनेजर डॅशबोर्ड",
+    "reports": "अहवाल",
+    "attendance": "उपस्थिती",
+
+    // Profile Screen
+    "my_profile": "माझे प्रोफाइल",
+    "edit_profile": "प्रोफाइल संपादित करा",
+    "save_profile": "प्रोफाइल जतन करा",
+    "save": "जतन करा",
+    "cancel": "रद्द करा",
+    "role": "भूमिका",
+    "offline": "ऑफलाइन",
+    "online": "ऑनलाइन",
+    "synced_with_cloud": "क्लाउडसह समक्रमित",
+    "saved_locally": "स्थानिक पातळीवर जतन केले",
+    "saved_locally_will_sync": "स्थानिक पातळीवर जतन केले • ऑनलाइन असताना समक्रमित होईल",
+    "syncing": "समक्रमित होत आहे...",
+    "offline_mode": "ऑफलाइन मोड",
+    "no_profile_found": "कोणतेही प्रोफाइल आढळले नाही",
+    "no_profile_loaded": "कोणतेही प्रोफाइल लोड झाले नाही",
+    "profile_saved": "प्रोफाइल स्थानिक पातळीवर जतन केले",
+    "profile_saved_syncing": "प्रोफाइल जतन केले आणि समक्रमित होत आहे...",
+    "failed_to_save_profile": "प्रोफाइल जतन करण्यात अयशस्वी",
+
+    // Language Selection
+    "select_language": "भाषा निवडा",
+    "choose_your_language": "तुमची भाषा निवडा",
+    "select_preferred_language": "सुरू ठेवण्यासाठी तुमची पसंतीची भाषा निवडा",
+    "continue_btn": "सुरू ठेवा",
+    "english": "English",
+    "hindi": "हिंदी",
+    "kannada": "ಕನ್ನಡ",
+    "marathi": "मराठी",
+    "tamil": "தமிழ்",
+
+    // Common Actions
+    "submit": "सबमिट करा",
+    "confirm": "पुष्टी करा",
+    "delete": "हटवा",
+    "edit": "संपादित करा",
+    "update": "अपडेट करा",
+    "close": "बंद करा",
+    "back": "मागे",
+    "next": "पुढे",
+    "done": "पूर्ण झाले",
+    "retry": "पुन्हा प्रयत्न करा",
+    "refresh": "रीफ्रेश करा",
+
+    // Common Messages
+    "success": "यश",
+    "error": "त्रुटी",
+    "warning": "चेतावणी",
+    "info": "माहिती",
+    "coming_soon": "लवकरच येत आहे...",
+    "no_data_available": "कोणताही डेटा उपलब्ध नाही",
+    "try_again": "पुन्हा प्रयत्न करा",
+
+    // Sync Messages
+    "sync_complete": "समक्रमण पूर्ण",
+    "sync_failed": "समक्रमण अयशस्वी",
+    "sync_in_progress": "समक्रमण प्रगतीपथावर",
+
+    // Connectivity
+    "no_internet_connection": "इंटरनेट कनेक्शन नाही",
+    "internet_restored": "इंटरनेट पुनर्संचयित",
+    "working_offline": "ऑफलाइन कार्य करत आहे",
+
+    // Placeholder Screens
+    "screen_coming_soon": "स्क्रीन लवकरच येत आहे...",
+  };
+
+
+  /// Tamil translations
+  static const Map<String, String> _tamil = {
+    // App Name & Branding
+    "app_name": "நிர்மாண சேது",
+    "manage_projects": "திட்டங்களை நிர்வகிக்கவும்",
+    "manage_projects_ease": "எளிதாக திட்டங்களை நிர்வகிக்கவும்",
+
+    // Welcome Screen
+    "get_started": "தொடங்குங்கள்",
+
+    // Role Selection
+    "choose_your_role": "உங்கள் பங்கை தேர்வு செய்யவும்",
+    "select_how_you_use": "நீங்கள் நிர்மாண சேதுவை எவ்வாறு பயன்படுத்துகிறீர்கள் என்பதைத் தேர்ந்தெடுக்கவும்",
+    "field_manager": "கள மேலாளர்",
+    "field_manager_desc": "தளத்தில் பணிகளை நிர்வகித்து தினசரி செயல்பாடுகளை மேற்பார்வையிடவும்",
+    "project_engineer": "திட்ட பொறியாளர்",
+    "project_engineer_desc": "திட்ட திட்டங்களை வடிவமைத்து தொழில்நுட்ப துல்லியத்தை உறுதிப்படுத்தவும்",
+    "owner_client": "உரிமையாளர் / வாடிக்கையாளர்",
+    "owner_client_desc": "திட்ட முன்னேற்றத்தை கண்காணித்து ஒப்பந்தங்களை நிர்வகிக்கவும்",
+
+    // Authentication
+    "login": "உள்நுழைவு",
+    "log_in": "உள்நுழைக",
+    "logout": "வெளியேறு",
+    "create_account": "கணக்கை உருவாக்கவும்",
+    "email": "மின்னஞ்சல்",
+    "password": "கடவுச்சொல்",
+    "confirm_password": "கடவுச்சொல்லை உறுதிப்படுத்தவும்",
+    "full_name": "முழு பெயர்",
+    "phone": "தொலைபேசி",
+    "phone_optional": "தொலைபேசி (விருப்பமானது)",
+    "mobile_number": "மொபைல் எண்",
+    "forgot_password": "கடவுச்சொல்லை மறந்துவிட்டீர்களா?",
+    "reset_your_password": "உங்கள் கடவுச்சொல்லை மீட்டமைக்கவும்",
+    "enter_email_or_phone": "மீட்டமைப்பு இணைப்பைப் பெற உங்கள் மின்னஞ்சல் அல்லது தொலைபேசியை உள்ளிடவும்.",
+    "send_reset_link": "மீட்டமைப்பு இணைப்பை அனுப்பவும்",
+    "new_here": "இங்கே புதியவரா? ",
+    "already_have_account": "ஏற்கனவே கணக்கு உள்ளதா? ",
+    "or_continue_with": "அல்லது தொடரவும்",
+    "google": "கூகுள்",
+    "facebook": "பேஸ்புக்",
+    "agree_to_terms": "நான் விதிமுறைகள் மற்றும் தனியுரிமை கொள்கையை ஏற்கிறேன்",
+
+    // Validation Messages
+    "enter_your_email": "உங்கள் மின்னஞ்சலை உள்ளிடவும்",
+    "enter_your_password": "உங்கள் கடவுச்சொல்லை உள்ளிடவும்",
+    "enter_your_full_name": "உங்கள் முழு பெயரை உள்ளிடவும்",
+    "enter_your_name": "உங்கள் பெயரை உள்ளிடவும்",
+    "password_min_length": "கடவுச்சொல் குறைந்தது 6 எழுத்துகளாக இருக்க வேண்டும்",
+    "passwords_do_not_match": "கடவுச்சொற்கள் பொருந்தவில்லை",
+    "invalid_email": "தவறான மின்னஞ்சல்",
+    "name_required": "பெயர் தேவை",
+    "email_required": "மின்னஞ்சல் தேவை",
+
+    // Auth Errors
+    "login_failed": "உள்நுழைவு தோல்வியடைந்தது. உங்கள் விவரங்களைச் சரிபார்க்கவும்.",
+    "no_account_found": "இந்த மின்னஞ்சலுடன் கணக்கு எதுவும் இல்லை.",
+    "incorrect_password": "தவறான கடவுச்சொல்.",
+    "invalid_email_address": "தவறான மின்னஞ்சல் முகவரி.",
+    "account_disabled": "இந்த கணக்கு முடக்கப்பட்டுள்ளது.",
+    "invalid_credentials": "தவறான மின்னஞ்சல் அல்லது கடவுச்சொல்.",
+    "account_creation_failed": "கணக்கு உருவாக்கம் தோல்வியடைந்தது. மீண்டும் முயற்சிக்கவும்.",
+    "email_already_in_use": "இந்த மின்னஞ்சலுடன் ஏற்கனவே கணக்கு உள்ளது.",
+    "weak_password": "கடவுச்சொல் மிகவும் பலவீனமானது. குறைந்தது 6 எழுத்துகளைப் பயன்படுத்தவும்.",
+    "google_sign_in_failed": "கூகுள் உள்நுழைவு தோல்வியடைந்தது. மீண்டும் முயற்சிக்கவும்.",
+    "logout_failed": "வெளியேறுதல் தோல்வியடைந்தது. மீண்டும் முயற்சிக்கவும்.",
+    "please_accept_terms": "விதிமுறைகள் மற்றும் தனியுரிமை கொள்கையை ஏற்கவும்",
+
+    // Loading States
+    "please_wait": "தயவுசெய்து காத்திருக்கவும்...",
+    "loading": "ஏற்றுகிறது...",
+
+    // Dashboard Common
+    "dashboard": "டாஷ்போர்டு",
+    "home": "முகப்பு",
+    "profile": "சுயவிவரம்",
+    "notifications": "அறிவிப்புகள்",
+    "settings": "அமைப்புகள்",
+
+    // Owner Dashboard
+    "owner_dashboard": "உரிமையாளர் டாஷ்போர்டு",
+    "investment_transparency": "முதலீட்டு வெளிப்படைத்தன்மை மற்றும் திட்ட மேலோட்டம்",
+    "total_investment": "மொத்த முதலீடு",
+    "amount_spent": "செலவழித்த தொகை",
+    "remaining_budget": "மீதமுள்ள பட்ஜெட்",
+    "overall_progress": "ஒட்டுமொத்த முன்னேற்றம்",
+    "progress_gallery": "முன்னேற்ற காட்சியகம்",
+    "billing_gst_invoices": "பில்லிங் மற்றும் ஜிஎஸ்டி விலைப்பட்டியல்கள்",
+    "plot_planning": "நில திட்டமிடல்",
+    "project_status_dashboard": "திட்ட நிலை டாஷ்போர்டு",
+    "direct_communication": "நேரடி தொடர்பு",
+    "milestones": "மைல்கற்கள்",
+    "gallery": "காட்சியகம்",
+    "invoices": "விலைப்பட்டியல்கள்",
+
+    // Engineer Dashboard
+    "engineer_dashboard": "பொறியாளர் டாஷ்போர்டு",
+    "verification_quality_overview": "சரிபார்ப்பு மற்றும் தர மேலோட்டம்",
+    "offline_will_sync_later": "ஆஃப்லைன் – பின்னர் ஒத்திசைக்கப்படும்",
+    "offline_items_pending_sync": "ஆஃப்லைன் உருப்படிகள் ஒத்திசைவு நிலுவையில்",
+    "pending_approvals": "நிலுவையில் உள்ள ஒப்புதல்கள்",
+    "photos_to_review": "மதிப்பாய்வு செய்ய புகைப்படங்கள்",
+    "delayed_milestones": "தாமதமான மைல்கற்கள்",
+    "material_requests": "பொருள் கோரிக்கைகள்",
+    "review_dprs": "டிபிஆர்களை மதிப்பாய்வு செய்யவும்",
+    "material_approvals": "பொருள் ஒப்புதல்கள்",
+    "project_details": "திட்ட விவரங்கள்",
+    "plot_reviews": "நில மதிப்பாய்வுகள்",
+    "materials": "பொருட்கள்",
+    "approvals": "ஒப்புதல்கள்",
+
+    // Manager Dashboard
+    "field_manager_dashboard": "கள மேலாளர் டாஷ்போர்டு",
+    "reports": "அறிக்கைகள்",
+    "attendance": "வருகைப்பதிவு",
+
+    // Profile Screen
+    "my_profile": "எனது சுயவிவரம்",
+    "edit_profile": "சுயவிவரத்தைத் திருத்து",
+    "save_profile": "சுயவிவரத்தைச் சேமி",
+    "save": "சேமி",
+    "cancel": "ரத்துசெய்",
+    "role": "பங்கு",
+    "offline": "ஆஃப்லைன்",
+    "online": "ஆன்லைன்",
+    "synced_with_cloud": "கிளவுடுடன் ஒத்திசைக்கப்பட்டது",
+    "saved_locally": "உள்ளூரில் சேமிக்கப்பட்டது",
+    "saved_locally_will_sync": "உள்ளூரில் சேமிக்கப்பட்டது • ஆன்லைனில் இருக்கும்போது ஒத்திசைக்கப்படும்",
+    "syncing": "ஒத்திசைக்கிறது...",
+    "offline_mode": "ஆஃப்லைன் பயன்முறை",
+    "no_profile_found": "சுயவிவரம் எதுவும் இல்லை",
+    "no_profile_loaded": "சுயவிவரம் ஏற்றப்படவில்லை",
+    "profile_saved": "சுயவிவரம் உள்ளூரில் சேமிக்கப்பட்டது",
+    "profile_saved_syncing": "சுயவிவரம் சேமிக்கப்பட்டு ஒத்திசைக்கிறது...",
+    "failed_to_save_profile": "சுயவிவரத்தைச் சேமிக்க முடியவில்லை",
+
+    // Language Selection
+    "select_language": "மொழியைத் தேர்ந்தெடுக்கவும்",
+    "choose_your_language": "உங்கள் மொழியைத் தேர்வு செய்யவும்",
+    "select_preferred_language": "தொடர உங்கள் விருப்ப மொழியைத் தேர்ந்தெடுக்கவும்",
+    "continue_btn": "தொடரவும்",
+    "english": "English",
+    "hindi": "हिंदी",
+    "kannada": "ಕನ್ನಡ",
+    "marathi": "मराठी",
+    "tamil": "தமிழ்",
+
+    // Common Actions
+    "submit": "சமர்ப்பிக்கவும்",
+    "confirm": "உறுதிப்படுத்து",
+    "delete": "நீக்கு",
+    "edit": "திருத்து",
+    "update": "புதுப்பிக்கவும்",
+    "close": "மூடு",
+    "back": "பின்",
+    "next": "அடுத்து",
+    "done": "முடிந்தது",
+    "retry": "மீண்டும் முயற்சிக்கவும்",
+    "refresh": "புதுப்பிக்கவும்",
+
+    // Common Messages
+    "success": "வெற்றி",
+    "error": "பிழை",
+    "warning": "எச்சரிக்கை",
+    "info": "தகவல்",
+    "coming_soon": "விரைவில் வருகிறது...",
+    "no_data_available": "தரவு எதுவும் இல்லை",
+    "try_again": "மீண்டும் முயற்சிக்கவும்",
+
+    // Sync Messages
+    "sync_complete": "ஒத்திசைவு முடிந்தது",
+    "sync_failed": "ஒத்திசைவு தோல்வியடைந்தது",
+    "sync_in_progress": "ஒத்திசைவு நடைபெறுகிறது",
+
+    // Connectivity
+    "no_internet_connection": "இணைய இணைப்பு இல்லை",
+    "internet_restored": "இணையம் மீட்டமைக்கப்பட்டது",
+    "working_offline": "ஆஃப்லைனில் வேலை செய்கிறது",
+
+    // Placeholder Screens
+    "screen_coming_soon": "திரை விரைவில் வருகிறது...",
   };
 }
