@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'dart:async';
 import 'dart:ui' as ui;
+import 'package:firebase_auth/firebase_auth.dart';
 import '../models/user_profile.dart';
 import '../services/profile_repository.dart';
 import '../services/connectivity_service.dart';
@@ -68,7 +69,25 @@ class _ProfileScreenState extends State<ProfileScreen> {
   /// This loads instantly from local cache.
   /// No network request, works offline.
   Future<void> _loadProfile() async {
-    final profile = _repository.getLocalProfile();
+    print('🔍 ProfileScreen: Loading profile for role: ${widget.role}');
+    
+    // Get current user UID
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) {
+      print('❌ ProfileScreen: No authenticated user');
+      setState(() {
+        _syncStatus = 'Not logged in';
+      });
+      return;
+    }
+    
+    print('✅ ProfileScreen: Auth UID: $uid');
+    
+    // Try to load profile using offline-first strategy
+    // This will check Hive first, then Firestore if not cached
+    final profile = await _repository.loadProfile(uid);
+    
+    print('📄 ProfileScreen: Profile loaded: ${profile != null ? profile.fullName : "null"}');
     
     if (profile != null) {
       setState(() {
@@ -78,6 +97,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         _updateSyncStatus();
       });
     } else {
+      print('⚠️ ProfileScreen: No profile found in Hive or Firestore');
       setState(() {
         _syncStatus = 'No profile found';
       });

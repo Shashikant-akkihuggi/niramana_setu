@@ -16,7 +16,9 @@ import '../common/widgets/public_id_display.dart';
 import '../services/real_time_project_service.dart';
 import '../services/dpr_service.dart';
 import '../services/material_request_service.dart';
+import '../services/notification_service.dart';
 import '../common/models/project_model.dart';
+import '../common/notifications.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../common/project_context.dart';
@@ -41,23 +43,24 @@ class _EngineerDashboardState extends State<EngineerDashboard> {
     Navigator.push(context, MaterialPageRoute(builder: (_) => page));
   }
 
-  final List<Widget> _pages = ProjectContext.activeProjectId == null 
-    ? [
-        // STATE 1: ENGINEER NOT INSIDE ANY PROJECT - 3 pages only
-        EngineerHomeScreen(), // Home - shows project list + Create Project
-        EngineerSocialScreen(), // Social - placeholder
-        EngineerProfileScreen(), // Profile
-      ]
-    : [
-        // STATE 2: ENGINEER INSIDE A PROJECT - Full pages
-        EngineerHomeScreen(), // Home with features
-        EngineerProjectsScreen(), // Projects
-        EngineerApprovalsScreen(), // Approvals
-        EngineerProfileScreen(), // Profile
-      ];
-
   @override
   Widget build(BuildContext context) {
+    // Conditional pages based on project context - MUST be inside build() to re-evaluate on state changes
+    final List<Widget> pages = ProjectContext.activeProjectId == null 
+      ? [
+          // STATE 1: ENGINEER NOT INSIDE ANY PROJECT - 3 pages only
+          EngineerHomeScreen(), // Home - shows project list + Create Project
+          EngineerSocialScreen(), // Social - placeholder
+          EngineerProfileScreen(), // Profile
+        ]
+      : [
+          // STATE 2: ENGINEER INSIDE A PROJECT - Full pages
+          EngineerHomeScreen(), // Home with features
+          EngineerProjectsScreen(), // Projects
+          EngineerApprovalsScreen(), // Approvals
+          EngineerProfileScreen(), // Profile
+        ];
+    
     return Scaffold(
       appBar: AppBar(
         title: Column(
@@ -136,29 +139,76 @@ class _EngineerDashboardState extends State<EngineerDashboard> {
             tooltip: 'Logout',
           ),
           const SizedBox(width: 4),
+          // Notification icon with badge
           Padding(
             padding: const EdgeInsets.only(right: 16),
-            child: Container(
-              height: 36,
-              width: 36,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                gradient: const LinearGradient(
-                  colors: [EngineerDashboard.primary, EngineerDashboard.accent],
-                ),
-                boxShadow: [
-                  BoxShadow(
-                    color: EngineerDashboard.primary.withValues(alpha: 0.25),
-                    blurRadius: 14,
-                    spreadRadius: 1,
+            child: Stack(
+              clipBehavior: Clip.none,
+              children: [
+                GestureDetector(
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => const NotificationsScreen(),
+                      ),
+                    );
+                  },
+                  child: Container(
+                    height: 36,
+                    width: 36,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      gradient: const LinearGradient(
+                        colors: [EngineerDashboard.primary, EngineerDashboard.accent],
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: EngineerDashboard.primary.withValues(alpha: 0.25),
+                          blurRadius: 14,
+                          spreadRadius: 1,
+                        ),
+                      ],
+                    ),
+                    child: const Icon(
+                      Icons.notifications_none,
+                      color: Colors.white,
+                      size: 20,
+                    ),
                   ),
-                ],
-              ),
-              child: IconButton(
-                padding: EdgeInsets.zero,
-                icon: const Icon(Icons.person, color: Colors.white, size: 20),
-                onPressed: () => setState(() => _index = 3),
-              ),
+                ),
+                // Unread notification badge
+                StreamBuilder<int>(
+                  stream: NotificationService.getUnreadNotificationsCount(),
+                  builder: (context, snapshot) {
+                    final count = snapshot.data ?? 0;
+                    if (count > 0) {
+                      return Positioned(
+                        right: -2,
+                        top: -2,
+                        child: Container(
+                          height: 18,
+                          width: 18,
+                          decoration: const BoxDecoration(
+                            color: Color(0xFFEF4444),
+                            shape: BoxShape.circle,
+                          ),
+                          alignment: Alignment.center,
+                          child: Text(
+                            count > 9 ? '9+' : '$count',
+                            style: const TextStyle(
+                              fontSize: 10,
+                              color: Colors.white,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      );
+                    }
+                    return const SizedBox.shrink();
+                  },
+                ),
+              ],
             ),
           ),
         ],
@@ -199,7 +249,7 @@ class _EngineerDashboardState extends State<EngineerDashboard> {
           ),
 
           // Page Content
-          SafeArea(child: _pages[_index]),
+          SafeArea(child: pages[_index]),
         ],
       ),
       floatingActionButton: (ProjectContext.activeProjectId == null && _index == 0) || 

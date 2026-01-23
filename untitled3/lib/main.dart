@@ -18,6 +18,9 @@ import 'common/screens/language_selection_screen.dart';
 import 'common/project_context.dart';
 import 'models/offline_dpr_model.dart';
 import 'common/services/connectivity_service.dart';
+import 'common/services/profile_repository.dart';
+import 'common/models/user_profile.dart';
+import 'common/models/user_profile_adapter.dart';
 import 'config/cloudinary_config.dart';
 import 'auth/register_screen.dart';
 
@@ -40,6 +43,11 @@ void main() async {
   // Initialize Hive
   await Hive.initFlutter();
   
+  // Register UserProfile adapter for profile caching
+  if (!Hive.isAdapterRegistered(0)) {
+    Hive.registerAdapter(UserProfileAdapter());
+  }
+  
   // Register OfflineDprModel adapter
   if (!Hive.isAdapterRegistered(10)) {
     Hive.registerAdapter(OfflineDprModelAdapter());
@@ -57,6 +65,10 @@ void main() async {
     } catch (_) {}
   }
   // The repository will register the adapter and open box lazily.
+
+  // Initialize Profile Repository
+  await ProfileRepository().initialize();
+  print('ProfileRepository initialized');
 
   // Initialize Offline Sync Service
   await OfflineSyncService().init();

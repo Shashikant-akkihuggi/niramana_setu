@@ -14,7 +14,9 @@ import '../common/localization/language_controller.dart';
 import '../common/widgets/public_id_display.dart';
 import '../services/project_service.dart';
 import '../services/real_time_project_service.dart';
+import '../services/notification_service.dart';
 import '../common/models/project_model.dart';
+import '../common/notifications.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:hive_flutter/hive_flutter.dart';
@@ -196,38 +198,74 @@ class _DashboardTab extends StatelessWidget {
                                 ],
                               ),
                             ),
-                            // Profile icon - now functional
-                            GestureDetector(
-                              onTap: () {
-                                Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (_) => const OwnerProfileTab(),
-                                  ),
-                                );
-                              },
-                              child: Container(
-                                height: 36,
-                                width: 36,
-                                decoration: BoxDecoration(
-                                  shape: BoxShape.circle,
-                                  gradient: const LinearGradient(
-                                    colors: [primary, accent],
-                                  ),
-                                  boxShadow: [
-                                    BoxShadow(
-                                      color: primary.withValues(alpha: 0.25),
-                                      blurRadius: 14,
-                                      spreadRadius: 1,
+                            // Notification icon with badge
+                            Stack(
+                              clipBehavior: Clip.none,
+                              children: [
+                                GestureDetector(
+                                  onTap: () {
+                                    Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (_) => const NotificationsScreen(),
+                                      ),
+                                    );
+                                  },
+                                  child: Container(
+                                    height: 36,
+                                    width: 36,
+                                    decoration: BoxDecoration(
+                                      shape: BoxShape.circle,
+                                      gradient: const LinearGradient(
+                                        colors: [primary, accent],
+                                      ),
+                                      boxShadow: [
+                                        BoxShadow(
+                                          color: primary.withValues(alpha: 0.25),
+                                          blurRadius: 14,
+                                          spreadRadius: 1,
+                                        ),
+                                      ],
                                     ),
-                                  ],
+                                    child: const Icon(
+                                      Icons.notifications_none,
+                                      color: Colors.white,
+                                      size: 20,
+                                    ),
+                                  ),
                                 ),
-                                child: const Icon(
-                                  Icons.person,
-                                  color: Colors.white,
-                                  size: 20,
+                                // Unread notification badge
+                                StreamBuilder<int>(
+                                  stream: NotificationService.getUnreadNotificationsCount(),
+                                  builder: (context, snapshot) {
+                                    final count = snapshot.data ?? 0;
+                                    if (count > 0) {
+                                      return Positioned(
+                                        right: -2,
+                                        top: -2,
+                                        child: Container(
+                                          height: 18,
+                                          width: 18,
+                                          decoration: const BoxDecoration(
+                                            color: Color(0xFFEF4444),
+                                            shape: BoxShape.circle,
+                                          ),
+                                          alignment: Alignment.center,
+                                          child: Text(
+                                            count > 9 ? '9+' : '$count',
+                                            style: const TextStyle(
+                                              fontSize: 10,
+                                              color: Colors.white,
+                                              fontWeight: FontWeight.bold,
+                                            ),
+                                          ),
+                                        ),
+                                      );
+                                    }
+                                    return const SizedBox.shrink();
+                                  },
                                 ),
-                              ),
+                              ],
                             ),
                             const SizedBox(width: 8),
                             // Logout button
@@ -431,38 +469,74 @@ class _DashboardTab extends StatelessWidget {
                               },
                               tooltip: 'Back to Projects',
                             ),
-                            // Profile icon - now functional
-                            GestureDetector(
-                              onTap: () {
-                                Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (_) => const OwnerProfileTab(),
-                                  ),
-                                );
-                              },
-                              child: Container(
-                                height: 36,
-                                width: 36,
-                                decoration: BoxDecoration(
-                                  shape: BoxShape.circle,
-                                  gradient: const LinearGradient(
-                                    colors: [primary, accent],
-                                  ),
-                                  boxShadow: [
-                                    BoxShadow(
-                                      color: primary.withValues(alpha: 0.25),
-                                      blurRadius: 14,
-                                      spreadRadius: 1,
+                            // Notification icon with badge
+                            Stack(
+                              clipBehavior: Clip.none,
+                              children: [
+                                GestureDetector(
+                                  onTap: () {
+                                    Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (_) => const NotificationsScreen(),
+                                      ),
+                                    );
+                                  },
+                                  child: Container(
+                                    height: 36,
+                                    width: 36,
+                                    decoration: BoxDecoration(
+                                      shape: BoxShape.circle,
+                                      gradient: const LinearGradient(
+                                        colors: [primary, accent],
+                                      ),
+                                      boxShadow: [
+                                        BoxShadow(
+                                          color: primary.withValues(alpha: 0.25),
+                                          blurRadius: 14,
+                                          spreadRadius: 1,
+                                        ),
+                                      ],
                                     ),
-                                  ],
+                                    child: const Icon(
+                                      Icons.notifications_none,
+                                      color: Colors.white,
+                                      size: 20,
+                                    ),
+                                  ),
                                 ),
-                                child: const Icon(
-                                  Icons.person,
-                                  color: Colors.white,
-                                  size: 20,
+                                // Unread notification badge
+                                StreamBuilder<int>(
+                                  stream: NotificationService.getUnreadNotificationsCount(),
+                                  builder: (context, snapshot) {
+                                    final count = snapshot.data ?? 0;
+                                    if (count > 0) {
+                                      return Positioned(
+                                        right: -2,
+                                        top: -2,
+                                        child: Container(
+                                          height: 18,
+                                          width: 18,
+                                          decoration: const BoxDecoration(
+                                            color: Color(0xFFEF4444),
+                                            shape: BoxShape.circle,
+                                          ),
+                                          alignment: Alignment.center,
+                                          child: Text(
+                                            count > 9 ? '9+' : '$count',
+                                            style: const TextStyle(
+                                              fontSize: 10,
+                                              color: Colors.white,
+                                              fontWeight: FontWeight.bold,
+                                            ),
+                                          ),
+                                        ),
+                                      );
+                                    }
+                                    return const SizedBox.shrink();
+                                  },
                                 ),
-                              ),
+                              ],
                             ),
                             const SizedBox(width: 8),
                             // Logout button
@@ -673,9 +747,13 @@ class _DashboardTab extends StatelessWidget {
                               title: langController.t('progress_gallery'),
                               icon: Icons.photo_library_outlined,
                               onTap: () {
-                                // TODO: Navigate to gallery when implemented
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(content: Text('Gallery coming soon')),
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (_) => OwnerGalleryScreen(
+                                      projectId: ProjectContext.activeProjectId!,
+                                    ),
+                                  ),
                                 );
                               },
                             ),
@@ -683,9 +761,13 @@ class _DashboardTab extends StatelessWidget {
                               title: langController.t('billing_gst_invoices'),
                               icon: Icons.receipt_long_outlined,
                               onTap: () {
-                                // TODO: Navigate to invoices when implemented
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(content: Text('Invoices coming soon')),
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (_) => OwnerInvoicesScreen(
+                                      projectId: ProjectContext.activeProjectId!,
+                                    ),
+                                  ),
                                 );
                               },
                             ),

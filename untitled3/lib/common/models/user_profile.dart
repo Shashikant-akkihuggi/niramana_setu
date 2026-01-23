@@ -71,7 +71,10 @@ class UserProfile extends HiveObject {
       phone: data['phone'],
       role: data['role'] ?? '',
       createdAt: (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
-      lastUpdated: (data['lastUpdated'] as Timestamp?)?.toDate() ?? DateTime.now(),
+      // Try both field names for backward compatibility
+      lastUpdated: (data['lastUpdated'] as Timestamp?)?.toDate() ?? 
+                   (data['lastUpdatedAt'] as Timestamp?)?.toDate() ?? 
+                   DateTime.now(),
       isDirty: false, // Fresh from Firestore = not dirty
     );
   }
@@ -81,6 +84,7 @@ class UserProfile extends HiveObject {
   /// This is used when uploading profile data to cloud.
   /// DateTime objects are converted to Firestore Timestamps.
   /// isDirty flag is excluded as it's only for local tracking.
+  /// Uses lastUpdatedAt to match the field name used throughout the app.
   Map<String, dynamic> toFirestore() {
     return {
       'fullName': fullName,
@@ -88,7 +92,7 @@ class UserProfile extends HiveObject {
       'phone': phone,
       'role': role,
       'createdAt': Timestamp.fromDate(createdAt),
-      'lastUpdated': Timestamp.fromDate(lastUpdated),
+      'lastUpdatedAt': Timestamp.fromDate(lastUpdated), // Match app convention
     };
   }
 
