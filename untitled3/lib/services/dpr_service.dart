@@ -12,25 +12,38 @@ class DPRService {
   static Stream<List<DPRModel>> getEngineerDPRs() {
     if (currentUserId == null) return Stream.value([]);
     
+    print('🔍 DPRService.getEngineerDPRs - Using individual project queries');
     return _firestore
         .collection('projects')
         .where('engineerId', isEqualTo: currentUserId)
         .snapshots()
-        .asyncExpand((projectSnapshot) {
+        .asyncMap((projectSnapshot) async {
           if (projectSnapshot.docs.isEmpty) {
-            return Stream.value(<DPRModel>[]);
+            return <DPRModel>[];
           }
           
-          final projectIds = projectSnapshot.docs.map((doc) => doc.id).toList();
+          final allDPRs = <DPRModel>[];
           
-          return _firestore
-              .collection('dprs')
-              .where('projectId', whereIn: projectIds)
-              .orderBy('createdAt', descending: true)
-              .snapshots()
-              .map((snapshot) => snapshot.docs
-                  .map((doc) => DPRModel.fromJson({...doc.data(), 'id': doc.id}))
-                  .toList());
+          // Query each project's dprs subcollection individually
+          for (final projectDoc in projectSnapshot.docs) {
+            final projectId = projectDoc.id;
+            final dprSnapshot = await _firestore
+                .collection('projects')
+                .doc(projectId)
+                .collection('dprs')
+                .orderBy('createdAt', descending: true)
+                .get();
+            
+            final dprs = dprSnapshot.docs
+                .map((doc) => DPRModel.fromJson({...doc.data(), 'id': doc.id}))
+                .toList();
+            
+            allDPRs.addAll(dprs);
+          }
+          
+          // Sort all DPRs by creation date
+          allDPRs.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+          return allDPRs;
         });
   }
 
@@ -38,9 +51,11 @@ class DPRService {
   static Stream<List<DPRModel>> getManagerDPRs(String projectId) {
     if (currentUserId == null) return Stream.value([]);
     
+    print('🔍 DPRService.getManagerDPRs - Using subcollection: projects/$projectId/dprs');
     return _firestore
+        .collection('projects')
+        .doc(projectId)
         .collection('dprs')
-        .where('projectId', isEqualTo: projectId)
         .where('submittedBy', isEqualTo: currentUserId)
         .orderBy('createdAt', descending: true)
         .snapshots()
@@ -51,9 +66,11 @@ class DPRService {
 
   // Get DPRs for Owner (from their accepted projects)
   static Stream<List<DPRModel>> getOwnerDPRs(String projectId) {
+    print('🔍 DPRService.getOwnerDPRs - Using subcollection: projects/$projectId/dprs');
     return _firestore
+        .collection('projects')
+        .doc(projectId)
         .collection('dprs')
-        .where('projectId', isEqualTo: projectId)
         .where('status', whereIn: ['approved', 'pending'])
         .orderBy('createdAt', descending: true)
         .snapshots()
@@ -66,15 +83,26 @@ class DPRService {
   static Future<String> createDPR(DPRModel dpr) async {
     if (currentUserId == null) throw Exception('User not authenticated');
     
-    final docRef = await _firestore.collection('dprs').add(dpr.toJson());
+    print('🔍 DPRService.createDPR - Using subcollection: projects/${dpr.projectId}/dprs');
+    final docRef = await _firestore
+        .collection('projects')
+        .doc(dpr.projectId)
+        .collection('dprs')
+        .add(dpr.toJson());
     return docRef.id;
   }
 
   // Update DPR status (Engineer approval/rejection)
-  static Future<void> updateDPRStatus(String dprId, String status, String? comment) async {
+  static Future<void> updateDPRStatus(String projectId, String dprId, String status, String? comment) async {
     if (currentUserId == null) throw Exception('User not authenticated');
     
-    await _firestore.collection('dprs').doc(dprId).update({
+    print('🔍 DPRService.updateDPRStatus - Using subcollection: projects/$projectId/dprs');
+    await _firestore
+        .collection('projects')
+        .doc(projectId)
+        .collection('dprs')
+        .doc(dprId)
+        .update({
       'status': status,
       'comment': comment,
       'reviewedBy': currentUserId,
@@ -86,20 +114,33 @@ class DPRService {
   static Future<void> updateDPR(String dprId, DPRModel dpr) async {
     if (currentUserId == null) throw Exception('User not authenticated');
     
-    await _firestore.collection('dprs').doc(dprId).update(dpr.toJson());
+    print('🔍 DPRService.updateDPR - Using subcollection: projects/${dpr.projectId}/dprs');
+    await _firestore
+        .collection('projects')
+        .doc(dpr.projectId)
+        .collection('dprs')
+        .doc(dprId)
+        .update(dpr.toJson());
   }
 
   // Delete DPR (Manager)
-  static Future<void> deleteDPR(String dprId) async {
+  static Future<void> deleteDPR(String projectId, String dprId) async {
     if (currentUserId == null) throw Exception('User not authenticated');
     
-    await _firestore.collection('dprs').doc(dprId).delete();
+    print('🔍 DPRService.deleteDPR - Using subcollection: projects/$projectId/dprs');
+    await _firestore
+        .collection('projects')
+        .doc(projectId)
+        .collection('dprs')
+        .doc(dprId)
+        .delete();
   }
 
   // Get pending DPRs count for Engineer
   static Stream<int> getEngineerPendingDPRsCount() {
     if (currentUserId == null) return Stream.value(0);
     
+    print('🔍 DPRService.getEngineerPendingDPRsCount - Using individual project queries');
     return _firestore
         .collection('projects')
         .where('engineerId', isEqualTo: currentUserId)
@@ -107,21 +148,34 @@ class DPRService {
         .asyncMap((projectSnapshot) async {
           if (projectSnapshot.docs.isEmpty) return 0;
           
-          final projectIds = projectSnapshot.docs.map((doc) => doc.id).toList();
+          int totalCount = 0;
           
-          final dprs = await _firestore
-              .collection('dprs')
-              .where('projectId', whereIn: projectIds)
-              .where('status', isEqualTo: 'pending')
-              .get();
+          // Query each project's dprs subcollection individually
+          for (final projectDoc in projectSnapshot.docs) {
+            final projectId = projectDoc.id;
+            final dprSnapshot = await _firestore
+                .collection('projects')
+                .doc(projectId)
+                .collection('dprs')
+                .where('status', isEqualTo: 'pending')
+                .get();
+            
+            totalCount += dprSnapshot.docs.length;
+          }
           
-          return dprs.docs.length;
+          return totalCount;
         });
   }
 
   // Get DPR by ID
-  static Future<DPRModel?> getDPRById(String dprId) async {
-    final doc = await _firestore.collection('dprs').doc(dprId).get();
+  static Future<DPRModel?> getDPRById(String projectId, String dprId) async {
+    print('🔍 DPRService.getDPRById - Using subcollection: projects/$projectId/dprs');
+    final doc = await _firestore
+        .collection('projects')
+        .doc(projectId)
+        .collection('dprs')
+        .doc(dprId)
+        .get();
     if (doc.exists) {
       return DPRModel.fromJson({...doc.data()!, 'id': doc.id});
     }
@@ -132,9 +186,11 @@ class DPRService {
   
   // Get DPRs for specific project
   static Stream<List<DPRModel>> getProjectDPRs(String projectId) {
+    print('🔍 DPRService.getProjectDPRs - Using subcollection: projects/$projectId/dprs');
     return _firestore
+        .collection('projects')
+        .doc(projectId)
         .collection('dprs')
-        .where('projectId', isEqualTo: projectId)
         .orderBy('createdAt', descending: true)
         .snapshots()
         .map((snapshot) => snapshot.docs
@@ -144,9 +200,11 @@ class DPRService {
 
   // Get pending DPRs count for specific project
   static Stream<int> getProjectPendingDPRsCount(String projectId) {
+    print('🔍 DPRService.getProjectPendingDPRsCount - Using subcollection: projects/$projectId/dprs');
     return _firestore
+        .collection('projects')
+        .doc(projectId)
         .collection('dprs')
-        .where('projectId', isEqualTo: projectId)
         .where('status', isEqualTo: 'pending')
         .snapshots()
         .map((snapshot) => snapshot.docs.length);

@@ -110,25 +110,38 @@ class MaterialRequestService {
   static Stream<List<MaterialRequestModel>> getEngineerMaterialRequests() {
     if (currentUserId == null) return Stream.value([]);
     
+    print('🔍 MaterialRequestService.getEngineerMaterialRequests - Using individual project queries');
     return _firestore
         .collection('projects')
         .where('engineerId', isEqualTo: currentUserId)
         .snapshots()
-        .asyncExpand((projectSnapshot) {
+        .asyncMap((projectSnapshot) async {
           if (projectSnapshot.docs.isEmpty) {
-            return Stream.value(<MaterialRequestModel>[]);
+            return <MaterialRequestModel>[];
           }
           
-          final projectIds = projectSnapshot.docs.map((doc) => doc.id).toList();
+          final allRequests = <MaterialRequestModel>[];
           
-          return _firestore
-              .collection('material_requests')
-              .where('projectId', whereIn: projectIds)
-              .orderBy('createdAt', descending: true)
-              .snapshots()
-              .map((snapshot) => snapshot.docs
-                  .map((doc) => MaterialRequestModel.fromJson({...doc.data(), 'id': doc.id}))
-                  .toList());
+          // Query each project's materials subcollection individually
+          for (final projectDoc in projectSnapshot.docs) {
+            final projectId = projectDoc.id;
+            final materialSnapshot = await _firestore
+                .collection('projects')
+                .doc(projectId)
+                .collection('materials')
+                .orderBy('createdAt', descending: true)
+                .get();
+            
+            final requests = materialSnapshot.docs
+                .map((doc) => MaterialRequestModel.fromJson({...doc.data(), 'id': doc.id}))
+                .toList();
+            
+            allRequests.addAll(requests);
+          }
+          
+          // Sort all requests by creation date
+          allRequests.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+          return allRequests;
         });
   }
 
@@ -136,9 +149,11 @@ class MaterialRequestService {
   static Stream<List<MaterialRequestModel>> getManagerMaterialRequests(String projectId) {
     if (currentUserId == null) return Stream.value([]);
     
+    print('🔍 MaterialRequestService.getManagerMaterialRequests - Using subcollection: projects/$projectId/materials');
     return _firestore
-        .collection('material_requests')
-        .where('projectId', isEqualTo: projectId)
+        .collection('projects')
+        .doc(projectId)
+        .collection('materials')
         .where('requesterId', isEqualTo: currentUserId)
         .orderBy('createdAt', descending: true)
         .snapshots()
@@ -149,9 +164,11 @@ class MaterialRequestService {
 
   // Get material requests for Owner (from their accepted projects)
   static Stream<List<MaterialRequestModel>> getOwnerMaterialRequests(String projectId) {
+    print('🔍 MaterialRequestService.getOwnerMaterialRequests - Using subcollection: projects/$projectId/materials');
     return _firestore
-        .collection('material_requests')
-        .where('projectId', isEqualTo: projectId)
+        .collection('projects')
+        .doc(projectId)
+        .collection('materials')
         .where('status', whereIn: ['approved', 'pending'])
         .orderBy('createdAt', descending: true)
         .snapshots()
@@ -164,40 +181,73 @@ class MaterialRequestService {
   static Future<String> createMaterialRequest(MaterialRequestModel request) async {
     if (currentUserId == null) throw Exception('User not authenticated');
     
-    final docRef = await _firestore.collection('material_requests').add(request.toJson());
+    print('🔍 MaterialRequestService.createMaterialRequest - Using subcollection: projects/${request.projectId}/materials');
+    final docRef = await _firestore
+        .collection('projects')
+        .doc(request.projectId)
+        .collection('materials')
+        .add(request.toJson());
     return docRef.id;
   }
 
   // Update material request status (Engineer approval/rejection)
-  static Future<void> updateMaterialRequestStatus(String requestId, String status, String? comment) async {
+  static Future<void> updateMaterialRequestStatus(String projectId, String requestId, String status, String? comment) async {
     if (currentUserId == null) throw Exception('User not authenticated');
     
-    await _firestore.collection('material_requests').doc(requestId).update({
-      'status': status,
-      'comment': comment,
-      'reviewedBy': currentUserId,
-      'reviewedAt': Timestamp.now(),
-    });
+    print('🔍 MaterialRequestService.updateMaterialRequestStatus - Using subcollection: projects/$projectId/materials');
+    print('🔍 MaterialRequestService.updateMaterialRequestStatus - Updating requestId: $requestId with status: $status');
+    
+    try {
+      await _firestore
+          .collection('projects')
+          .doc(projectId)
+          .collection('materials')
+          .doc(requestId)
+          .update({
+        'status': status,
+        'engineerComment': comment,
+        'approvedByUid': currentUserId,
+        'approvedAt': Timestamp.now(),
+      });
+      
+      print('✅ MaterialRequestService.updateMaterialRequestStatus - Successfully updated material request');
+    } catch (e) {
+      print('❌ MaterialRequestService.updateMaterialRequestStatus - Error: $e');
+      rethrow;
+    }
   }
 
   // Update material request (Manager editing)
   static Future<void> updateMaterialRequest(String requestId, MaterialRequestModel request) async {
     if (currentUserId == null) throw Exception('User not authenticated');
     
-    await _firestore.collection('material_requests').doc(requestId).update(request.toJson());
+    print('🔍 MaterialRequestService.updateMaterialRequest - Using subcollection: projects/${request.projectId}/materials');
+    await _firestore
+        .collection('projects')
+        .doc(request.projectId)
+        .collection('materials')
+        .doc(requestId)
+        .update(request.toJson());
   }
 
   // Delete material request (Manager)
-  static Future<void> deleteMaterialRequest(String requestId) async {
+  static Future<void> deleteMaterialRequest(String projectId, String requestId) async {
     if (currentUserId == null) throw Exception('User not authenticated');
     
-    await _firestore.collection('material_requests').doc(requestId).delete();
+    print('🔍 MaterialRequestService.deleteMaterialRequest - Using subcollection: projects/$projectId/materials');
+    await _firestore
+        .collection('projects')
+        .doc(projectId)
+        .collection('materials')
+        .doc(requestId)
+        .delete();
   }
 
   // Get pending material requests count for Engineer
   static Stream<int> getEngineerPendingMaterialRequestsCount() {
     if (currentUserId == null) return Stream.value(0);
     
+    print('🔍 MaterialRequestService.getEngineerPendingMaterialRequestsCount - Using individual project queries');
     return _firestore
         .collection('projects')
         .where('engineerId', isEqualTo: currentUserId)
@@ -205,21 +255,34 @@ class MaterialRequestService {
         .asyncMap((projectSnapshot) async {
           if (projectSnapshot.docs.isEmpty) return 0;
           
-          final projectIds = projectSnapshot.docs.map((doc) => doc.id).toList();
+          int totalCount = 0;
           
-          final requests = await _firestore
-              .collection('material_requests')
-              .where('projectId', whereIn: projectIds)
-              .where('status', isEqualTo: 'pending')
-              .get();
+          // Query each project's materials subcollection individually
+          for (final projectDoc in projectSnapshot.docs) {
+            final projectId = projectDoc.id;
+            final materialSnapshot = await _firestore
+                .collection('projects')
+                .doc(projectId)
+                .collection('materials')
+                .where('status', isEqualTo: 'pending')
+                .get();
+            
+            totalCount += materialSnapshot.docs.length;
+          }
           
-          return requests.docs.length;
+          return totalCount;
         });
   }
 
   // Get material request by ID
-  static Future<MaterialRequestModel?> getMaterialRequestById(String requestId) async {
-    final doc = await _firestore.collection('material_requests').doc(requestId).get();
+  static Future<MaterialRequestModel?> getMaterialRequestById(String projectId, String requestId) async {
+    print('🔍 MaterialRequestService.getMaterialRequestById - Using subcollection: projects/$projectId/materials');
+    final doc = await _firestore
+        .collection('projects')
+        .doc(projectId)
+        .collection('materials')
+        .doc(requestId)
+        .get();
     if (doc.exists) {
       return MaterialRequestModel.fromJson({...doc.data()!, 'id': doc.id});
     }
@@ -230,9 +293,11 @@ class MaterialRequestService {
   
   // Get material requests for specific project
   static Stream<List<MaterialRequestModel>> getProjectMaterialRequests(String projectId) {
+    print('🔍 MaterialRequestService.getProjectMaterialRequests - Using subcollection: projects/$projectId/materials');
     return _firestore
-        .collection('material_requests')
-        .where('projectId', isEqualTo: projectId)
+        .collection('projects')
+        .doc(projectId)
+        .collection('materials')
         .orderBy('createdAt', descending: true)
         .snapshots()
         .map((snapshot) => snapshot.docs
@@ -242,9 +307,11 @@ class MaterialRequestService {
 
   // Get pending material requests count for specific project
   static Stream<int> getProjectPendingMaterialRequestsCount(String projectId) {
+    print('🔍 MaterialRequestService.getProjectPendingMaterialRequestsCount - Using subcollection: projects/$projectId/materials');
     return _firestore
-        .collection('material_requests')
-        .where('projectId', isEqualTo: projectId)
+        .collection('projects')
+        .doc(projectId)
+        .collection('materials')
         .where('status', isEqualTo: 'pending')
         .snapshots()
         .map((snapshot) => snapshot.docs.length);

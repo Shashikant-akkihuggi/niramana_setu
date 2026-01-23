@@ -22,11 +22,25 @@ class _MaterialApprovalScreenState extends State<MaterialApprovalScreen> {
         builder: (_) => _ApprovalDetail(
           request: req,
           onDecision: (status, comment) async {
-            await MaterialRequestService.updateMaterialRequestStatus(req.id, status, comment);
-            if (mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text('Request ${status}')),
-              );
+            print('🔍 MaterialApproval - Starting $status action for request: ${req.id}');
+            try {
+              await MaterialRequestService.updateMaterialRequestStatus(req.projectId, req.id, status, comment);
+              print('✅ MaterialApproval - Successfully ${status} request: ${req.id}');
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text('Request ${status} successfully')),
+                );
+              }
+            } catch (e) {
+              print('❌ MaterialApproval - Error ${status} request: $e');
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('Error: Failed to $status request'),
+                    backgroundColor: Colors.red,
+                  ),
+                );
+              }
             }
           },
         ),
@@ -323,9 +337,14 @@ class _ApprovalDetail extends StatelessWidget {
                             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                           ),
                           onPressed: () async {
-                            await onDecision('approved', commentController.text.trim());
-                            if (context.mounted) {
-                              Navigator.of(context).pop();
+                            print('🔍 MaterialApproval - Approve button pressed for request: ${request.id}');
+                            try {
+                              await onDecision('approved', commentController.text.trim());
+                              if (context.mounted) {
+                                Navigator.of(context).pop();
+                              }
+                            } catch (e) {
+                              print('❌ MaterialApproval - Error in approve button handler: $e');
                             }
                           },
                           icon: const Icon(Icons.check_circle),
@@ -342,9 +361,14 @@ class _ApprovalDetail extends StatelessWidget {
                             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                           ),
                           onPressed: () async {
-                            await onDecision('rejected', commentController.text.trim());
-                            if (context.mounted) {
-                              Navigator.of(context).pop();
+                            print('🔍 MaterialApproval - Reject button pressed for request: ${request.id}');
+                            try {
+                              await onDecision('rejected', commentController.text.trim());
+                              if (context.mounted) {
+                                Navigator.of(context).pop();
+                              }
+                            } catch (e) {
+                              print('❌ MaterialApproval - Error in reject button handler: $e');
                             }
                           },
                           icon: const Icon(Icons.cancel),

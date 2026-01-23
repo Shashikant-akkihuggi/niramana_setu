@@ -29,7 +29,7 @@ class _DPRReviewScreenState extends State<DPRReviewScreen> {
           dpr: dpr,
           onStatusChanged: (status, comment) async {
             try {
-              await DPRService.updateDPRStatus(dpr.id, status, comment);
+              await DPRService.updateDPRStatus(dpr.projectId, dpr.id, status, comment);
               
               // Send notification to Manager
               await NotificationService.notifyDPRApproval(

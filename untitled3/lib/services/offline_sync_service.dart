@@ -208,7 +208,11 @@ class OfflineSyncService {
     for (var entry in unsynced) {
       try {
         final payload = Map<String, dynamic>.from(entry['payload'] as Map);
-        await FirebaseFirestore.instance.collection('material_requests').add(payload);
+        await FirebaseFirestore.instance
+            .collection('projects')
+            .doc(payload['projectId'])
+            .collection('materials')
+            .add(payload);
         
         await _materialBox.delete(entry['id']);
         debugPrint("OfflineSync: Material Request synced: ${entry['id']}");
