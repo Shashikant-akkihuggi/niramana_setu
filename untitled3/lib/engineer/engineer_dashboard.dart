@@ -10,6 +10,7 @@ import 'plot_review/plot_review_screen.dart';
 import 'engineer_project_card.dart';
 import 'create_project_screen.dart';
 import 'project_reassignment_screen.dart';
+import 'engineer_tasks_screen.dart';
 import '../common/screens/milestone_hub_screen.dart';
 import '../common/services/logout_service.dart';
 import '../common/widgets/public_id_display.dart';
@@ -569,6 +570,19 @@ class EngineerHomeScreen extends StatelessWidget {
                       context,
                       MaterialPageRoute(
                         builder: (_) => const MilestoneHubScreen(),
+                      ),
+                    );
+                  },
+                ),
+                _ActionCard(
+                  title: 'Tasks',
+                  icon: Icons.task_alt_outlined,
+                  notifications: 0,
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => const EngineerTasksScreen(),
                       ),
                     );
                   },

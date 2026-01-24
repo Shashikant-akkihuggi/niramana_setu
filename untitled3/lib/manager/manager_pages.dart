@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'dart:ui' as ui;
 import 'dpr_form.dart';
 import 'material_request.dart';
+import 'manager_tasks_screen.dart';
 import '../services/real_time_project_service.dart';
 import '../services/dpr_service.dart';
 import '../services/material_request_service.dart';
@@ -472,6 +473,16 @@ class ManagerHomeScreen extends StatelessWidget {
                             Navigator.push(
                               context,
                               MaterialPageRoute(builder: (_) => const DPRFormScreen()),
+                            );
+                          },
+                        ),
+                        _FeatureCard(
+                          title: 'Tasks',
+                          icon: Icons.task_alt_outlined,
+                          onTap: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(builder: (_) => const ManagerTasksScreen()),
                             );
                           },
                         ),

@@ -6,6 +6,7 @@ import 'owner_profile_tab.dart';
 import 'owner_project_card.dart';
 import 'project_status_dashboard.dart';
 import 'direct_communication.dart';
+import 'owner_tasks_screen.dart';
 import 'plot_analysis/plot_entry_screen.dart';
 import '../common/screens/milestone_timeline_screen.dart';
 import '../common/screens/milestone_hub_screen.dart';
@@ -818,6 +819,18 @@ class _DashboardTab extends StatelessWidget {
                                   context,
                                   MaterialPageRoute(
                                     builder: (_) => const MilestoneHubScreen(),
+                                  ),
+                                );
+                              },
+                            ),
+                            _ActionCard(
+                              title: 'Tasks',
+                              icon: Icons.task_alt_outlined,
+                              onTap: () {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (_) => const OwnerTasksScreen(),
                                   ),
                                 );
                               },
