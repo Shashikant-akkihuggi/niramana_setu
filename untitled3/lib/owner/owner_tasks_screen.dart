@@ -3,215 +3,144 @@ import 'dart:ui' as ui;
 import '../services/task_service.dart';
 import '../common/project_context.dart';
 
+/// Owner Tasks Screen
+/// 
+/// This is a placeholder screen for the Tasks functionality.
+/// It provides a professional "Coming Soon" interface with consistent styling.
+/// 
+/// Future Implementation:
+/// - View all project tasks
+/// - See task status and progress
+/// - Track manager assignments
+/// - Monitor task completion
+/// - View task remarks and updates
 class OwnerTasksScreen extends StatelessWidget {
   const OwnerTasksScreen({super.key});
 
+  static const Color primary = Color(0xFF136DEC);
+  static const Color accent = Color(0xFF7A5AF8);
+
   @override
   Widget build(BuildContext context) {
-    final projectId = ProjectContext.activeProjectId;
-    if (projectId == null) {
-      return Scaffold(
-        appBar: AppBar(title: const Text('Task Overview')),
-        body: const Center(child: Text('No active project')),
-      );
-    }
-
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Task Overview'),
+        title: const Text('Tasks'),
         backgroundColor: Colors.transparent,
         elevation: 0,
       ),
-      body: SafeArea(
-        child: StreamBuilder<List<TaskModel>>(
-          stream: TaskService.getOwnerTasks(projectId),
-          builder: (context, snapshot) {
-            if (snapshot.connectionState == ConnectionState.waiting) {
-              return const Center(child: CircularProgressIndicator());
-            }
-            
-            final tasks = snapshot.data ?? [];
-            
-            if (tasks.isEmpty) {
-              return const SizedBox.shrink();
-            }
-            
-            return ListView.separated(
-              padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
-              itemCount: tasks.length,
-              separatorBuilder: (_, __) => const SizedBox(height: 12),
-              itemBuilder: (context, i) => _TaskCard(task: tasks[i]),
-            );
-          },
-        ),
-      ),
-    );
-  }
-}
-
-class _TaskCard extends StatelessWidget {
-  final TaskModel task;
-  const _TaskCard({required this.task});
-
-  Color _statusColor(String status) {
-    switch (status) {
-      case 'Completed':
-        return const Color(0xFF16A34A);
-      case 'Blocked':
-        return const Color(0xFFDC2626);
-      case 'In Progress':
-        return const Color(0xFF2563EB);
-      default:
-        return const Color(0xFFF59E0B);
-    }
-  }
-
-  Color _priorityColor(String priority) {
-    switch (priority) {
-      case 'High':
-        return const Color(0xFFDC2626);
-      case 'Low':
-        return const Color(0xFF16A34A);
-      default:
-        return const Color(0xFFF59E0B);
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(18),
-      child: BackdropFilter(
-        filter: ui.ImageFilter.blur(sigmaX: 16, sigmaY: 16),
-        child: Container(
-          decoration: BoxDecoration(
-            color: Colors.white.withValues(alpha: 0.55),
-            borderRadius: BorderRadius.circular(18),
-            border: Border.all(color: Colors.white.withValues(alpha: 0.45)),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.06),
-                blurRadius: 16,
-                offset: const Offset(0, 8),
+      extendBodyBehindAppBar: true,
+      body: Stack(
+        children: [
+          // Background gradient
+          Container(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  primary.withValues(alpha: 0.12),
+                  accent.withValues(alpha: 0.10),
+                  Colors.white,
+                ],
+                stops: const [0.0, 0.45, 1.0],
               ),
-            ],
+            ),
           ),
-          padding: const EdgeInsets.all(14),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      task.title,
-                      style: const TextStyle(
-                        fontWeight: FontWeight.w800,
-                        color: Color(0xFF1F2937),
-                      ),
-                    ),
-                  ),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 8,
-                      vertical: 4,
-                    ),
-                    decoration: BoxDecoration(
-                      color: _statusColor(task.status).withValues(alpha: 0.12),
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(
-                        color: _statusColor(task.status).withValues(alpha: 0.35),
-                      ),
-                    ),
-                    child: Text(
-                      task.status,
-                      style: TextStyle(
-                        color: _statusColor(task.status),
-                        fontWeight: FontWeight.w700,
-                        fontSize: 11,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 8),
-              Text(
-                task.description,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(color: Color(0xFF4B5563)),
-              ),
-              const SizedBox(height: 8),
-              Row(
-                children: [
-                  Icon(
-                    Icons.flag_outlined,
-                    size: 14,
-                    color: _priorityColor(task.priority),
-                  ),
-                  const SizedBox(width: 4),
-                  Text(
-                    task.priority,
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: _priorityColor(task.priority),
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  const SizedBox(width: 16),
-                  const Icon(
-                    Icons.calendar_today,
-                    size: 14,
-                    color: Color(0xFF6B7280),
-                  ),
-                  const SizedBox(width: 4),
-                  Text(
-                    'Due: ${task.dueDate}',
-                    style: const TextStyle(
-                      fontSize: 12,
-                      color: Color(0xFF6B7280),
-                    ),
-                  ),
-                ],
-              ),
-              if (task.managerRemark != null && task.managerRemark!.isNotEmpty) ...[
-                const SizedBox(height: 10),
-                Container(
-                  padding: const EdgeInsets.all(10),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF2563EB).withValues(alpha: 0.08),
-                    borderRadius: BorderRadius.circular(10),
-                    border: Border.all(
-                      color: const Color(0xFF2563EB).withValues(alpha: 0.2),
-                    ),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text(
-                        'Manager Remark:',
-                        style: TextStyle(
-                          fontWeight: FontWeight.w700,
-                          color: Color(0xFF2563EB),
-                          fontSize: 12,
+          SafeArea(
+            child: Center(
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(24),
+                  child: BackdropFilter(
+                    filter: ui.ImageFilter.blur(sigmaX: 18, sigmaY: 18),
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.55),
+                        borderRadius: BorderRadius.circular(24),
+                        border: Border.all(
+                          color: Colors.white.withValues(alpha: 0.45),
                         ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.06),
+                            blurRadius: 18,
+                            offset: const Offset(0, 8),
+                          ),
+                          BoxShadow(
+                            color: primary.withValues(alpha: 0.16),
+                            blurRadius: 26,
+                            spreadRadius: 1,
+                          ),
+                        ],
                       ),
-                      const SizedBox(height: 4),
-                      Text(
-                        task.managerRemark!,
-                        style: const TextStyle(
-                          color: Color(0xFF1F2937),
-                          fontSize: 13,
-                        ),
+                      padding: const EdgeInsets.all(32),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Container(
+                            height: 80,
+                            width: 80,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              gradient: const LinearGradient(
+                                colors: [primary, accent],
+                              ),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: primary.withValues(alpha: 0.25),
+                                  blurRadius: 20,
+                                  spreadRadius: 2,
+                                ),
+                              ],
+                            ),
+                            child: const Icon(
+                              Icons.task_alt_outlined,
+                              color: Colors.white,
+                              size: 40,
+                            ),
+                          ),
+                          const SizedBox(height: 24),
+                          Text(
+                            'Tasks',
+                            textAlign: TextAlign.center,
+                            style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                              fontWeight: FontWeight.w800,
+                              color: const Color(0xFF1F1F1F),
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          Text(
+                            'Coming soon...',
+                            textAlign: TextAlign.center,
+                            style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                              color: const Color(0xFF5C5C5C),
+                            ),
+                          ),
+                          const SizedBox(height: 20),
+                          Text(
+                            'Engineer-to-manager task assignment, tracking, and status updates will be available here.',
+                            textAlign: TextAlign.center,
+                            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                              color: const Color(0xFF6B7280),
+                            ),
+                          ),
+                        ],
                       ),
-                    ],
+                    ),
                   ),
                 ),
-              ],
-            ],
+              ),
+            ),
           ),
-        ),
+        ],
       ),
     );
   }
 }
+
+// Future task logic preserved for later activation:
+// - TaskService.getOwnerTasks(projectId) for fetching tasks
+// - _TaskCard widget for displaying individual tasks
+// - Status colors and priority indicators
+// - Manager remark display functionality
