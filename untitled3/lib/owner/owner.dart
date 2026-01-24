@@ -8,6 +8,7 @@ import 'project_status_dashboard.dart';
 import 'direct_communication.dart';
 import 'owner_tasks_screen.dart';
 import 'screens/owner_attendance_view_screen.dart';
+import 'screens/owner_petty_cash_summary_screen.dart';
 import 'plot_analysis/plot_entry_screen.dart';
 import '../common/screens/milestone_timeline_screen.dart';
 import '../common/screens/milestone_hub_screen.dart';
@@ -845,11 +846,10 @@ class _DashboardTab extends StatelessWidget {
                               title: 'Petty Cash',
                               icon: Icons.account_balance_wallet,
                               onTap: () {
-                                // TODO: Navigate to Read-only Petty Cash summary
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(
-                                    content: Text('Petty Cash Summary - Coming Soon'),
-                                    backgroundColor: Colors.blue,
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (_) => const OwnerPettyCashSummaryScreen(),
                                   ),
                                 );
                               },

@@ -11,6 +11,7 @@ import 'engineer_project_card.dart';
 import 'create_project_screen.dart';
 import 'project_reassignment_screen.dart';
 import 'engineer_tasks_screen.dart';
+import 'petty_cash_review_screen.dart';
 import 'screens/mr_approval_screen.dart';
 import 'billing/engineer_billing_screen.dart';
 import '../common/screens/milestone_hub_screen.dart';
@@ -598,11 +599,10 @@ class EngineerHomeScreen extends StatelessWidget {
                   icon: Icons.account_balance_wallet,
                   notifications: 0,
                   onTap: () {
-                    // TODO: Navigate to Petty Cash Review screen
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('Petty Cash Review - Coming Soon'),
-                        backgroundColor: Colors.blue,
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => const PettyCashReviewScreen(),
                       ),
                     );
                   },

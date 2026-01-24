@@ -1,28 +1,28 @@
 import 'package:flutter/material.dart';
 import 'dart:ui' as ui;
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import '../common/project_context.dart';
+import '../../common/project_context.dart';
 
-/// Petty Cash Review Screen - Engineer View
+/// Owner Petty Cash Summary Screen - Read-Only View
 /// 
-/// Allows Engineers to:
-/// - View submitted expenses
-/// - Verify expenses (approve)
-/// - Reject expenses with notes
+/// Allows Owners to:
+/// - View wallet overview (total allocated, spent, available)
+/// - View all expenses (read-only)
 /// - View receipt photos
-/// - View GPS location details
+/// - View GPS locations
+/// - View expense status
+/// - View engineer verification status
 /// 
-/// Role: Engineer only
-/// Access: Review (cannot edit amount, GPS, or receipt)
-class PettyCashReviewScreen extends StatefulWidget {
-  const PettyCashReviewScreen({super.key});
+/// Role: Owner only
+/// Access: Read-only (no approve/reject/edit/delete)
+class OwnerPettyCashSummaryScreen extends StatefulWidget {
+  const OwnerPettyCashSummaryScreen({super.key});
 
   @override
-  State<PettyCashReviewScreen> createState() => _PettyCashReviewScreenState();
+  State<OwnerPettyCashSummaryScreen> createState() => _OwnerPettyCashSummaryScreenState();
 }
 
-class _PettyCashReviewScreenState extends State<PettyCashReviewScreen> {
+class _OwnerPettyCashSummaryScreenState extends State<OwnerPettyCashSummaryScreen> {
   static const Color primary = Color(0xFF136DEC);
   static const Color accent = Color(0xFF7A5AF8);
 
@@ -60,6 +60,14 @@ class _PettyCashReviewScreenState extends State<PettyCashReviewScreen> {
                   padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
                   child: _buildHeader(context, projectName),
                 ),
+
+                // Wallet Overview Card
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: _buildWalletOverview(projectId),
+                ),
+
+                const SizedBox(height: 16),
 
                 // Filter chips
                 Padding(
@@ -114,7 +122,7 @@ class _PettyCashReviewScreenState extends State<PettyCashReviewScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     const Text(
-                      'Petty Cash Review',
+                      'Petty Cash Summary',
                       style: TextStyle(
                         fontSize: 18,
                         fontWeight: FontWeight.w800,
@@ -123,7 +131,7 @@ class _PettyCashReviewScreenState extends State<PettyCashReviewScreen> {
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      projectName ?? 'Review site expenses',
+                      projectName ?? 'Expense overview',
                       style: const TextStyle(
                         color: Color(0xFF5C5C5C),
                         fontSize: 12,
@@ -146,11 +154,172 @@ class _PettyCashReviewScreenState extends State<PettyCashReviewScreen> {
                     ),
                   ],
                 ),
-                child: const Icon(Icons.verified_user, color: Colors.white, size: 20),
+                child: const Icon(Icons.account_balance_wallet, color: Colors.white, size: 20),
               ),
             ],
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _buildWalletOverview(String? projectId) {
+    if (projectId == null) {
+      return const SizedBox.shrink();
+    }
+
+    return StreamBuilder<QuerySnapshot>(
+      stream: FirebaseFirestore.instance
+          .collection('projects')
+          .doc(projectId)
+          .collection('expenses')
+          .snapshots(),
+      builder: (context, snapshot) {
+        double totalSpent = 0;
+        double totalVerified = 0;
+        double totalPending = 0;
+        int expenseCount = 0;
+
+        if (snapshot.hasData) {
+          expenseCount = snapshot.data!.docs.length;
+          for (var doc in snapshot.data!.docs) {
+            final data = doc.data() as Map<String, dynamic>;
+            final amount = (data['amount'] as num?)?.toDouble() ?? 0;
+            final status = data['status'] as String? ?? 'pending';
+
+            totalSpent += amount;
+            if (status == 'verified') {
+              totalVerified += amount;
+            } else if (status == 'pending') {
+              totalPending += amount;
+            }
+          }
+        }
+
+        return ClipRRect(
+          borderRadius: BorderRadius.circular(16),
+          child: BackdropFilter(
+            filter: ui.ImageFilter.blur(sigmaX: 14, sigmaY: 14),
+            child: Container(
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  colors: [primary, accent],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+                borderRadius: BorderRadius.circular(16),
+                boxShadow: [
+                  BoxShadow(
+                    color: primary.withValues(alpha: 0.3),
+                    blurRadius: 20,
+                    offset: const Offset(0, 10),
+                  ),
+                ],
+              ),
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text(
+                        'Total Expenses',
+                        style: TextStyle(
+                          color: Colors.white70,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.2),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Text(
+                          '$expenseCount ${expenseCount == 1 ? 'Expense' : 'Expenses'}',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    '₹${totalSpent.toStringAsFixed(2)}',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 32,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _buildOverviewStat(
+                          'Verified',
+                          '₹${totalVerified.toStringAsFixed(0)}',
+                          Icons.check_circle_outline,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: _buildOverviewStat(
+                          'Pending',
+                          '₹${totalPending.toStringAsFixed(0)}',
+                          Icons.pending_outlined,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildOverviewStat(String label, String value, IconData icon) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.15),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        children: [
+          Icon(icon, color: Colors.white, size: 20),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  style: const TextStyle(
+                    color: Colors.white70,
+                    fontSize: 10,
+                  ),
+                ),
+                Text(
+                  value,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -231,13 +400,13 @@ class _PettyCashReviewScreenState extends State<PettyCashReviewScreen> {
         }).toList();
 
         if (filteredDocs.isEmpty) {
-          return _buildEmptyState('No ${_filterStatus} expenses');
+          return _buildEmptyState('No $_filterStatus expenses');
         }
 
         return ListView.separated(
           padding: const EdgeInsets.all(16),
           itemCount: filteredDocs.length,
-          separatorBuilder: (_, __) => const SizedBox(height: 12),
+          separatorBuilder: (context, index) => const SizedBox(height: 12),
           itemBuilder: (context, index) {
             final doc = filteredDocs[index];
             final data = doc.data() as Map<String, dynamic>;
@@ -254,23 +423,27 @@ class _PettyCashReviewScreenState extends State<PettyCashReviewScreen> {
     final status = data['status'] as String? ?? 'pending';
     final notes = data['notes'] as String? ?? '';
     final submittedAt = (data['submittedAt'] as Timestamp?)?.toDate();
-    final receiptUrl = data['receiptUrl'] as String?;
+    final reviewedBy = data['reviewedBy'] as String?;
     final geoLocation = data['geoLocation'] as Map<String, dynamic>?;
 
     Color statusColor;
     IconData statusIcon;
+    String statusLabel;
     switch (status) {
       case 'verified':
         statusColor = Colors.green;
         statusIcon = Icons.check_circle;
+        statusLabel = 'VERIFIED';
         break;
       case 'rejected':
         statusColor = Colors.red;
         statusIcon = Icons.cancel;
+        statusLabel = 'REJECTED';
         break;
       default:
         statusColor = Colors.orange;
         statusIcon = Icons.pending;
+        statusLabel = 'PENDING';
     }
 
     return GestureDetector(
@@ -352,7 +525,7 @@ class _PettyCashReviewScreenState extends State<PettyCashReviewScreen> {
                             borderRadius: BorderRadius.circular(12),
                           ),
                           child: Text(
-                            status.toUpperCase(),
+                            statusLabel,
                             style: TextStyle(
                               color: statusColor,
                               fontSize: 10,
@@ -376,8 +549,29 @@ class _PettyCashReviewScreenState extends State<PettyCashReviewScreen> {
                     overflow: TextOverflow.ellipsis,
                   ),
                 ],
-                if (geoLocation != null) ...[
+                if (reviewedBy != null) ...[
                   const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      Icon(
+                        status == 'verified' ? Icons.verified : Icons.info_outline,
+                        size: 14,
+                        color: statusColor,
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        status == 'verified' ? 'Verified by Engineer' : 'Reviewed by Engineer',
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: statusColor,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+                if (geoLocation != null) ...[
+                  const SizedBox(height: 8),
                   Row(
                     children: [
                       const Icon(Icons.location_on, size: 14, color: Colors.blue),
@@ -388,38 +582,6 @@ class _PettyCashReviewScreenState extends State<PettyCashReviewScreen> {
                         style: const TextStyle(
                           fontSize: 11,
                           color: Colors.blue,
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-                if (status == 'pending') ...[
-                  const SizedBox(height: 12),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: ElevatedButton.icon(
-                          onPressed: () => _verifyExpense(expenseId),
-                          icon: const Icon(Icons.check, size: 18),
-                          label: const Text('Verify'),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.green,
-                            foregroundColor: Colors.white,
-                            padding: const EdgeInsets.symmetric(vertical: 8),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: ElevatedButton.icon(
-                          onPressed: () => _rejectExpense(expenseId),
-                          icon: const Icon(Icons.close, size: 18),
-                          label: const Text('Reject'),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.red,
-                            foregroundColor: Colors.white,
-                            padding: const EdgeInsets.symmetric(vertical: 8),
-                          ),
                         ),
                       ),
                     ],
@@ -441,6 +603,9 @@ class _PettyCashReviewScreenState extends State<PettyCashReviewScreen> {
     final submittedAt = (data['submittedAt'] as Timestamp?)?.toDate();
     final receiptUrl = data['receiptUrl'] as String?;
     final geoLocation = data['geoLocation'] as Map<String, dynamic>?;
+    final reviewedBy = data['reviewedBy'] as String?;
+    final reviewedAt = (data['reviewedAt'] as Timestamp?)?.toDate();
+    final rejectionNote = data['rejectionNote'] as String?;
 
     showModalBottomSheet(
       context: context,
@@ -478,6 +643,28 @@ class _PettyCashReviewScreenState extends State<PettyCashReviewScreen> {
                       ),
                     ),
                   ),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                    decoration: BoxDecoration(
+                      color: Colors.blue.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: const Row(
+                      children: [
+                        Icon(Icons.visibility, size: 14, color: Colors.blue),
+                        SizedBox(width: 4),
+                        Text(
+                          'READ-ONLY',
+                          style: TextStyle(
+                            fontSize: 10,
+                            color: Colors.blue,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 8),
                   IconButton(
                     onPressed: () => Navigator.pop(context),
                     icon: const Icon(Icons.close),
@@ -525,6 +712,24 @@ class _PettyCashReviewScreenState extends State<PettyCashReviewScreen> {
                       ),
                       const SizedBox(height: 16),
                     ],
+                    // Engineer Review Status
+                    if (reviewedBy != null) ...[
+                      _buildDetailRow(
+                        'Engineer Review',
+                        'Reviewed on ${reviewedAt != null ? '${reviewedAt.day}/${reviewedAt.month}/${reviewedAt.year}' : 'Unknown'}',
+                        Icons.verified_user,
+                      ),
+                      const SizedBox(height: 16),
+                    ],
+                    // Rejection Note
+                    if (rejectionNote != null && rejectionNote.isNotEmpty) ...[
+                      _buildDetailRow(
+                        'Rejection Reason',
+                        rejectionNote,
+                        Icons.report_problem,
+                      ),
+                      const SizedBox(height: 16),
+                    ],
                     // Receipt Photo
                     if (receiptUrl != null) ...[
                       const Text(
@@ -568,48 +773,6 @@ class _PettyCashReviewScreenState extends State<PettyCashReviewScreen> {
                 ),
               ),
             ),
-            // Action buttons
-            if (status == 'pending') ...[
-              const Divider(height: 1),
-              Padding(
-                padding: const EdgeInsets.all(16),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: ElevatedButton.icon(
-                        onPressed: () {
-                          Navigator.pop(context);
-                          _verifyExpense(expenseId);
-                        },
-                        icon: const Icon(Icons.check),
-                        label: const Text('Verify Expense'),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.green,
-                          foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(vertical: 14),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: ElevatedButton.icon(
-                        onPressed: () {
-                          Navigator.pop(context);
-                          _rejectExpense(expenseId);
-                        },
-                        icon: const Icon(Icons.close),
-                        label: const Text('Reject Expense'),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.red,
-                          foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(vertical: 14),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
           ],
         ),
       ),
@@ -648,125 +811,6 @@ class _PettyCashReviewScreenState extends State<PettyCashReviewScreen> {
         ),
       ],
     );
-  }
-
-  Future<void> _verifyExpense(String expenseId) async {
-    try {
-      final projectId = ProjectContext.activeProjectId;
-      if (projectId == null) throw Exception('No active project');
-
-      final currentUser = FirebaseAuth.instance.currentUser;
-      if (currentUser == null) throw Exception('User not authenticated');
-
-      await FirebaseFirestore.instance
-          .collection('projects')
-          .doc(projectId)
-          .collection('expenses')
-          .doc(expenseId)
-          .update({
-        'status': 'verified',
-        'reviewedBy': currentUser.uid,
-        'reviewedAt': FieldValue.serverTimestamp(),
-      });
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Expense verified successfully'),
-            backgroundColor: Colors.green,
-          ),
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error verifying expense: $e'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
-    }
-  }
-
-  Future<void> _rejectExpense(String expenseId) async {
-    final noteController = TextEditingController();
-
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Reject Expense'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Text('Are you sure you want to reject this expense?'),
-            const SizedBox(height: 16),
-            TextField(
-              controller: noteController,
-              decoration: const InputDecoration(
-                labelText: 'Rejection Note (Optional)',
-                border: OutlineInputBorder(),
-              ),
-              maxLines: 3,
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(context, true),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.red,
-              foregroundColor: Colors.white,
-            ),
-            child: const Text('Reject'),
-          ),
-        ],
-      ),
-    );
-
-    if (confirmed != true) return;
-
-    try {
-      final projectId = ProjectContext.activeProjectId;
-      if (projectId == null) throw Exception('No active project');
-
-      final currentUser = FirebaseAuth.instance.currentUser;
-      if (currentUser == null) throw Exception('User not authenticated');
-
-      await FirebaseFirestore.instance
-          .collection('projects')
-          .doc(projectId)
-          .collection('expenses')
-          .doc(expenseId)
-          .update({
-        'status': 'rejected',
-        'reviewedBy': currentUser.uid,
-        'reviewedAt': FieldValue.serverTimestamp(),
-        'rejectionNote': noteController.text.trim(),
-      });
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Expense rejected'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error rejecting expense: $e'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
-    }
   }
 
   Widget _buildEmptyState(String message) {
