@@ -800,9 +800,7 @@ class _DashboardTab extends StatelessWidget {
                                 Navigator.push(
                                   context,
                                   MaterialPageRoute(
-                                    builder: (_) => DirectCommunicationScreen(
-                                      projectId: ProjectContext.activeProjectId!,
-                                    ),
+                                    builder: (_) => const DirectCommunicationScreen(),
                                   ),
                                 );
                               },
