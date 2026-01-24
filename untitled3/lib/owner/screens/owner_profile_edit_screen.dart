@@ -4,6 +4,8 @@ import '../models/owner_profile.dart';
 import '../services/owner_profile_service.dart';
 import '../../common/widgets/loading_overlay.dart';
 import '../../common/widgets/public_id_display.dart';
+import '../../common/services/logout_service.dart';
+import '../../common/localization/language_controller.dart';
 
 /// Owner Profile Edit Screen
 /// 
@@ -149,6 +151,8 @@ class _OwnerProfileEditScreenState extends State<OwnerProfileEditScreen>
                           _buildProfileCard(),
                           const SizedBox(height: 16),
                           _buildActionButtons(),
+                          const SizedBox(height: 16),
+                          _buildLogoutButton(),
                         ],
                       ),
                     ),
@@ -497,5 +501,35 @@ class _OwnerProfileEditScreenState extends State<OwnerProfileEditScreen>
 
   String _formatDate(DateTime date) {
     return '${date.day}/${date.month}/${date.year}';
+  }
+
+  Widget _buildLogoutButton() {
+    final langController = LanguageController();
+    
+    return OutlinedButton(
+      onPressed: () => LogoutService.logout(context),
+      style: OutlinedButton.styleFrom(
+        foregroundColor: const Color(0xFFDC2626),
+        side: const BorderSide(color: Color(0xFFDC2626)),
+        padding: const EdgeInsets.symmetric(vertical: 16),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(8),
+        ),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          const Icon(Icons.logout, size: 20),
+          const SizedBox(width: 8),
+          Text(
+            langController.t('logout'),
+            style: const TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }
