@@ -1,6 +1,11 @@
 import 'package:flutter/material.dart';
 import 'dart:ui' as ui;
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:pdf/pdf.dart';
+import '../models/gst_bill_model.dart';
+import '../services/gst_bill_service.dart';
+import '../services/pdf_service.dart';
+import 'package:printing/printing.dart';
 
 class _ThemeINV {
   static const Color primary = Color(0xFF136DEC);
@@ -56,63 +61,162 @@ class OwnerInvoicesScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Stack(
-      children: [
-        _Background(),
-        SafeArea(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(20, 12, 20, 8),
-                child: Text(
-                  'Invoices',
-                  style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                    fontWeight: FontWeight.w600,
-                    color: const Color(0xFF1F1F1F),
+    return DefaultTabController(
+      length: 2,
+      child: Stack(
+        children: [
+          _Background(),
+          SafeArea(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 12, 20, 8),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          'Billing & GST Invoices',
+                          style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                            fontWeight: FontWeight.w600,
+                            color: const Color(0xFF1F1F1F),
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-              ),
-              Expanded(
-                child: StreamBuilder<List<InvoiceModel>>(
-                  stream: _invoicesStream(),
-                  builder: (context, snapshot) {
-                    final items = snapshot.data ?? const <InvoiceModel>[];
-                    if (snapshot.connectionState == ConnectionState.waiting) {
-                      return const Center(child: CircularProgressIndicator());
-                    }
-                    if (items.isEmpty) {
-                      return ListView.separated(
-                        padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
-                        itemCount: 0,
-                        separatorBuilder: (_, __) => const SizedBox(height: 12),
-                        itemBuilder: (_, __) => const SizedBox.shrink(),
-                      );
-                    }
-                    return ListView.separated(
-                      padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
-                      itemCount: items.length,
-                      separatorBuilder: (_, __) => const SizedBox(height: 12),
-                      itemBuilder: (context, i) {
-                        final inv = items[i];
-                        return _InvoiceCard(
-                          invoice: inv,
-                          onTap: () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(builder: (_) => _InvoiceDetailScreen(invoice: inv)),
-                            );
-                          },
-                        );
-                      },
-                    );
-                  },
+                const TabBar(
+                  tabs: [
+                    Tab(text: 'GST Bills'),
+                    Tab(text: 'Legacy Invoices'),
+                  ],
+                  labelColor: Color(0xFF136DEC),
+                  unselectedLabelColor: Color(0xFF6B7280),
                 ),
-              ),
-            ],
+                Expanded(
+                  child: TabBarView(
+                    children: [
+                      // GST Bills Tab
+                      StreamBuilder<List<GSTBillModel>>(
+                        stream: GSTBillService.getApprovedBills(projectId),
+                        builder: (context, snapshot) {
+                          final bills = snapshot.data ?? [];
+                          if (snapshot.connectionState == ConnectionState.waiting) {
+                            return const Center(child: CircularProgressIndicator());
+                          }
+                          if (bills.isEmpty) {
+                            return Center(
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  const Icon(
+                                    Icons.receipt_long,
+                                    size: 64,
+                                    color: Color(0xFF9CA3AF),
+                                  ),
+                                  const SizedBox(height: 16),
+                                  const Text(
+                                    'No Approved Bills',
+                                    style: TextStyle(
+                                      fontSize: 18,
+                                      fontWeight: FontWeight.w600,
+                                      color: Color(0xFF1F2937),
+                                    ),
+                                  ),
+                                  const SizedBox(height: 8),
+                                  const Text(
+                                    'Approved bills will appear here',
+                                    style: TextStyle(color: Color(0xFF6B7280)),
+                                  ),
+                                ],
+                              ),
+                            );
+                          }
+                          return ListView.separated(
+                            padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+                            itemCount: bills.length,
+                            separatorBuilder: (_, _) => const SizedBox(height: 12),
+                            itemBuilder: (context, i) {
+                              final bill = bills[i];
+                              return _GSTBillCard(
+                                bill: bill,
+                                onTap: () {
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (_) => _GSTBillDetailScreen(
+                                        projectId: projectId,
+                                        bill: bill,
+                                      ),
+                                    ),
+                                  );
+                                },
+                              );
+                            },
+                          );
+                        },
+                      ),
+                      // Legacy Invoices Tab
+                      StreamBuilder<List<InvoiceModel>>(
+                        stream: _invoicesStream(),
+                        builder: (context, snapshot) {
+                          final items = snapshot.data ?? const <InvoiceModel>[];
+                          if (snapshot.connectionState == ConnectionState.waiting) {
+                            return const Center(child: CircularProgressIndicator());
+                          }
+                          if (items.isEmpty) {
+                            return Center(
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  const Icon(
+                                    Icons.receipt_long,
+                                    size: 64,
+                                    color: Color(0xFF9CA3AF),
+                                  ),
+                                  const SizedBox(height: 16),
+                                  const Text(
+                                    'No Invoices',
+                                    style: TextStyle(
+                                      fontSize: 18,
+                                      fontWeight: FontWeight.w600,
+                                      color: Color(0xFF1F2937),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            );
+                          }
+                          return ListView.separated(
+                            padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+                            itemCount: items.length,
+                            separatorBuilder: (_, _) => const SizedBox(height: 12),
+                            itemBuilder: (context, i) {
+                              final inv = items[i];
+                              return _InvoiceCard(
+                                invoice: inv,
+                                onTap: () {
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (_) => _InvoiceDetailScreen(invoice: inv),
+                                    ),
+                                  );
+                                },
+                              );
+                            },
+                          );
+                        },
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 }
@@ -419,6 +523,323 @@ class _GlassBlock extends StatelessWidget {
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+// GST Bill Components
+class _GSTBillCard extends StatelessWidget {
+  final GSTBillModel bill;
+  final VoidCallback onTap;
+  const _GSTBillCard({required this.bill, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final String d = bill.billDate != null
+        ? '${bill.billDate!.day.toString().padLeft(2, '0')}-${bill.billDate!.month.toString().padLeft(2, '0')}-${bill.billDate!.year}'
+        : '${bill.createdAt.day.toString().padLeft(2, '0')}-${bill.createdAt.month.toString().padLeft(2, '0')}-${bill.createdAt.year}';
+
+    return GestureDetector(
+      onTap: onTap,
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(18),
+        child: BackdropFilter(
+          filter: ui.ImageFilter.blur(sigmaX: 16, sigmaY: 16),
+          child: Container(
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.55),
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(color: Colors.white.withValues(alpha: 0.45)),
+              boxShadow: [
+                BoxShadow(color: Colors.black.withValues(alpha: 0.06), blurRadius: 16, offset: const Offset(0, 8)),
+                BoxShadow(color: _ThemeINV.primary.withValues(alpha: 0.12), blurRadius: 24, spreadRadius: 1),
+              ],
+            ),
+            padding: const EdgeInsets.all(16),
+            child: Row(
+              children: [
+                Container(
+                  height: 44,
+                  width: 44,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    gradient: const LinearGradient(colors: [_ThemeINV.primary, _ThemeINV.accent]),
+                    boxShadow: [
+                      BoxShadow(color: _ThemeINV.primary.withValues(alpha: 0.25), blurRadius: 14),
+                    ],
+                  ),
+                  child: const Icon(Icons.receipt_long_rounded, color: Colors.white, size: 20),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        bill.billNumber,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w600,
+                          color: Color(0xFF1F2937),
+                          fontSize: 16,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        '${bill.vendorName}  •  $d',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: Color(0xFF4B5563),
+                          fontSize: 13,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Text(
+                      '₹${_formatAmount(bill.totalAmount)}',
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w600,
+                        color: Color(0xFF1F2937),
+                        fontSize: 16,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF16A34A).withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: const Color(0xFF16A34A).withValues(alpha: 0.35)),
+                      ),
+                      child: const Text(
+                        'APPROVED',
+                        style: TextStyle(
+                          color: Color(0xFF16A34A),
+                          fontWeight: FontWeight.w600,
+                          fontSize: 11,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  String _formatAmount(double amount) {
+    if (amount >= 10000000) {
+      return '${(amount / 10000000).toStringAsFixed(1)}Cr';
+    } else if (amount >= 100000) {
+      return '${(amount / 100000).toStringAsFixed(1)}L';
+    } else {
+      return amount.toStringAsFixed(0);
+    }
+  }
+}
+
+class _GSTBillDetailScreen extends StatefulWidget {
+  final String projectId;
+  final GSTBillModel bill;
+  const _GSTBillDetailScreen({required this.projectId, required this.bill});
+
+  @override
+  State<_GSTBillDetailScreen> createState() => _GSTBillDetailScreenState();
+}
+
+class _GSTBillDetailScreenState extends State<_GSTBillDetailScreen> {
+  bool _isGeneratingPDF = false;
+
+  Future<void> _downloadPDF() async {
+    setState(() => _isGeneratingPDF = true);
+
+    try {
+      final pdfFile = await PDFService.generateInvoicePDF(widget.bill);
+      
+      if (mounted) {
+        await Printing.layoutPdf(
+          onLayout: (PdfPageFormat format) async => await pdfFile.readAsBytes(),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error generating PDF: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isGeneratingPDF = false);
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final String d = widget.bill.billDate != null
+        ? '${widget.bill.billDate!.day.toString().padLeft(2, '0')}-${widget.bill.billDate!.month.toString().padLeft(2, '0')}-${widget.bill.billDate!.year}'
+        : '${widget.bill.createdAt.day.toString().padLeft(2, '0')}-${widget.bill.createdAt.month.toString().padLeft(2, '0')}-${widget.bill.createdAt.year}';
+
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Bill Details'),
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        actions: [
+          IconButton(
+            icon: _isGeneratingPDF
+                ? const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.download),
+            onPressed: _isGeneratingPDF ? null : _downloadPDF,
+            tooltip: 'Download PDF',
+          ),
+        ],
+      ),
+      extendBodyBehindAppBar: true,
+      body: Stack(
+        children: [
+          _Background(),
+          SafeArea(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  _GlassBlock(
+                    title: widget.bill.billNumber,
+                    icon: Icons.receipt_long_rounded,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(d),
+                        const SizedBox(height: 6),
+                        Row(
+                          children: [
+                            const Text('Status: ', style: TextStyle(fontWeight: FontWeight.w700)),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFF16A34A).withValues(alpha: 0.12),
+                                borderRadius: BorderRadius.circular(999),
+                                border: Border.all(color: const Color(0xFF16A34A).withValues(alpha: 0.35)),
+                              ),
+                              child: const Text(
+                                'APPROVED',
+                                style: TextStyle(color: Color(0xFF16A34A), fontWeight: FontWeight.w700),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  _GlassBlock(
+                    title: 'Vendor Details',
+                    icon: Icons.business,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(widget.bill.vendorName),
+                        if (widget.bill.vendorAddress != null) ...[
+                          const SizedBox(height: 4),
+                          Text(widget.bill.vendorAddress!),
+                        ],
+                        const SizedBox(height: 4),
+                        Text('GSTIN: ${widget.bill.vendorGSTIN}'),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  _GlassBlock(
+                    title: 'Item Details',
+                    icon: Icons.inventory_2,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(widget.bill.description),
+                        const SizedBox(height: 4),
+                        Text('Quantity: ${widget.bill.quantity} ${widget.bill.unit}'),
+                        Text('Rate: ₹${widget.bill.rate.toStringAsFixed(2)}'),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  _GlassBlock(
+                    title: 'Breakdown',
+                    icon: Icons.grid_view_rounded,
+                    child: Column(
+                      children: [
+                        _row('Base Amount', '₹${widget.bill.baseAmount.toStringAsFixed(2)}'),
+                        if (widget.bill.cgstAmount > 0)
+                          _row('CGST (${(widget.bill.gstRate / 2).toStringAsFixed(1)}%)', '₹${widget.bill.cgstAmount.toStringAsFixed(2)}'),
+                        if (widget.bill.sgstAmount > 0)
+                          _row('SGST (${(widget.bill.gstRate / 2).toStringAsFixed(1)}%)', '₹${widget.bill.sgstAmount.toStringAsFixed(2)}'),
+                        if (widget.bill.igstAmount > 0)
+                          _row('IGST (${widget.bill.gstRate.toStringAsFixed(1)}%)', '₹${widget.bill.igstAmount.toStringAsFixed(2)}'),
+                        const Divider(height: 18),
+                        _row('Total', '₹${widget.bill.totalAmount.toStringAsFixed(2)}', bold: true),
+                      ],
+                    ),
+                  ),
+                  if (widget.bill.notes != null && widget.bill.notes!.isNotEmpty) ...[
+                    const SizedBox(height: 12),
+                    _GlassBlock(
+                      title: 'Notes',
+                      icon: Icons.notes_rounded,
+                      child: Text(widget.bill.notes!),
+                    ),
+                  ],
+                  const SizedBox(height: 16),
+                  ElevatedButton.icon(
+                    onPressed: _isGeneratingPDF ? null : _downloadPDF,
+                    icon: const Icon(Icons.picture_as_pdf),
+                    label: const Text('Download PDF Invoice'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: _ThemeINV.primary,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _row(String k, String v, {bool bold = false}) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 6),
+      child: Row(
+        children: [
+          Expanded(child: Text(k)),
+          Text(v, style: TextStyle(fontWeight: bold ? FontWeight.w800 : FontWeight.w600)),
+        ],
       ),
     );
   }

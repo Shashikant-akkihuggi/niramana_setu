@@ -8,9 +8,11 @@ import 'screens/manager_profile_screen.dart';
 import '../common/notifications.dart';
 import '../common/services/logout_service.dart';
 import '../common/widgets/public_id_display.dart';
+import '../common/widgets/social_user_card.dart';
 import '../services/notification_service.dart';
 import '../services/real_time_project_service.dart';
 import '../services/manager_service.dart';
+import '../services/social_service.dart';
 import '../common/models/project_model.dart';
 import '../common/project_context.dart';
 
@@ -484,6 +486,9 @@ class ManagerProjectsScreen extends StatelessWidget {
 class ManagerSocialScreen extends StatelessWidget {
   const ManagerSocialScreen({super.key});
 
+  static const Color primary = Color(0xFF136DEC);
+  static const Color accent = Color(0xFF7A5AF8);
+
   @override
   Widget build(BuildContext context) {
     return Stack(
@@ -495,43 +500,117 @@ class ManagerSocialScreen extends StatelessWidget {
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
               colors: [
-                const Color(0xFF136DEC).withValues(alpha: 0.12),
-                const Color(0xFF7A5AF8).withValues(alpha: 0.10),
+                primary.withValues(alpha: 0.12),
+                accent.withValues(alpha: 0.10),
                 Colors.white,
               ],
               stops: const [0.0, 0.45, 1.0],
             ),
           ),
         ),
-
         SafeArea(
-          child: Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                const Icon(
-                  Icons.people_rounded,
-                  size: 64,
-                  color: Color(0xFF9CA3AF),
-                ),
-                const SizedBox(height: 16),
-                const Text(
-                  'Social Features',
-                  style: TextStyle(
-                    fontSize: 18,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 12, 20, 8),
+                child: Text(
+                  'Professional Directory',
+                  style: Theme.of(context).textTheme.headlineSmall?.copyWith(
                     fontWeight: FontWeight.w600,
-                    color: Color(0xFF1F2937),
+                    color: const Color(0xFF1F1F1F),
                   ),
                 ),
-                const SizedBox(height: 8),
-                const Text(
-                  'Coming soon',
-                  style: TextStyle(
-                    color: Color(0xFF6B7280),
-                  ),
+              ),
+              Expanded(
+                child: StreamBuilder(
+                  stream: SocialService.getVisibleUsers(),
+                  builder: (context, snapshot) {
+                    if (snapshot.connectionState == ConnectionState.waiting) {
+                      return const Center(child: CircularProgressIndicator());
+                    }
+
+                    if (snapshot.hasError) {
+                      return Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            const Icon(
+                              Icons.error_outline,
+                              size: 64,
+                              color: Color(0xFFEF4444),
+                            ),
+                            const SizedBox(height: 16),
+                            Text(
+                              'Error loading profiles',
+                              style: const TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.w600,
+                                color: Color(0xFF1F2937),
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              snapshot.error.toString(),
+                              style: const TextStyle(
+                                color: Color(0xFF6B7280),
+                              ),
+                              textAlign: TextAlign.center,
+                            ),
+                          ],
+                        ),
+                      );
+                    }
+
+                    final users = snapshot.data ?? [];
+
+                    if (users.isEmpty) {
+                      return Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            const Icon(
+                              Icons.people_rounded,
+                              size: 64,
+                              color: Color(0xFF9CA3AF),
+                            ),
+                            const SizedBox(height: 16),
+                            const Text(
+                              'No profiles available yet',
+                              style: TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.w600,
+                                color: Color(0xFF1F2937),
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            const Text(
+                              'Profiles will appear here as users join',
+                              style: TextStyle(
+                                color: Color(0xFF6B7280),
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    }
+
+                    return ListView.separated(
+                      padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+                      itemCount: users.length,
+                      separatorBuilder: (_, _) => const SizedBox(height: 12),
+                      itemBuilder: (context, index) {
+                        return SocialUserCard(
+                          user: users[index],
+                          primaryColor: primary,
+                          accentColor: accent,
+                        );
+                      },
+                    );
+                  },
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
         ),
       ],

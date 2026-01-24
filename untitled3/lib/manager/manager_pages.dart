@@ -3,6 +3,7 @@ import 'dart:ui' as ui;
 import 'dpr_form.dart';
 import 'material_request.dart';
 import 'manager_tasks_screen.dart';
+import 'billing/manager_billing_screen.dart';
 import '../services/real_time_project_service.dart';
 import '../services/dpr_service.dart';
 import '../services/material_request_service.dart';
@@ -491,6 +492,18 @@ class ManagerHomeScreen extends StatelessWidget {
                           icon: Icons.groups,
                           onTap: () {
                             // TODO: Navigate to worker count screen
+                          },
+                        ),
+                        _FeatureCard(
+                          title: 'Billing & Invoices',
+                          icon: Icons.receipt_long,
+                          onTap: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => const ManagerBillingScreen(),
+                              ),
+                            );
                           },
                         ),
                       ],
