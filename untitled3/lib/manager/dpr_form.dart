@@ -8,6 +8,7 @@ import 'package:connectivity_plus/connectivity_plus.dart';
 import '../services/cloudinary_service.dart';
 import '../services/image_compression_service.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import '../common/project_context.dart';
 
 class _ThemeFM {
   static const Color primary = Color(0xFF136DEC);
@@ -137,18 +138,51 @@ class _DPRFormScreenState extends State<DPRFormScreen> {
   /// Save DPR to Firebase with Cloudinary URLs
   Future<void> _saveToFirebase(List<String> cloudinaryUrls) async {
     final currentUser = FirebaseAuth.instance.currentUser;
-    final report = {
-      'workDone': _workDoneController.text.trim(),
-      'materialsUsed': _materialsUsedController.text.trim(),
-      'workersPresent': _workersPresentController.text.trim(),
-      'imageUrls': cloudinaryUrls,
-      'imagesCount': cloudinaryUrls.length,
-      'createdAt': DateTime.now().toIso8601String(),
-      'createdBy': currentUser?.uid,
-      'status': 'submitted',
-    };
+    final projectId = ProjectContext.activeProjectId;
+    
+    // Validate project context
+    if (projectId == null) {
+      throw Exception('No active project selected. Please select a project first.');
+    }
+    
+    if (currentUser == null) {
+      throw Exception('User not authenticated');
+    }
 
-    await FirebaseFirestore.instance.collection('dpr_reports').add(report);
+    debugPrint('DPR Submit: Saving DPR with ${cloudinaryUrls.length} images to project: $projectId');
+
+    // Parse workersPresent as int
+    int workersCount = 0;
+    try {
+      final workersText = _workersPresentController.text.trim();
+      // Try to parse as number, if it fails, count comma-separated names
+      workersCount = int.tryParse(workersText) ?? workersText.split(',').length;
+    } catch (e) {
+      workersCount = 0;
+    }
+
+    // Save one DPR document with all images
+    try {
+      await FirebaseFirestore.instance
+          .collection('projects')
+          .doc(projectId)
+          .collection('dpr')
+          .add({
+        'workDescription': _workDoneController.text.trim(),
+        'materialsUsed': _materialsUsedController.text.trim(),
+        'workersPresent': workersCount,
+        'images': cloudinaryUrls,
+        'status': 'Pending',
+        'uploadedByUid': currentUser.uid,
+        'uploadedAt': FieldValue.serverTimestamp(),
+        'engineerComment': null,
+      });
+      
+      debugPrint('DPR Submit: DPR saved successfully to Firestore');
+    } catch (e) {
+      debugPrint('DPR Submit: Error saving DPR to Firestore: $e');
+      rethrow;
+    }
 
     if (!mounted) return;
     
@@ -171,6 +205,22 @@ class _DPRFormScreenState extends State<DPRFormScreen> {
   Future<void> _submitOffline() async {
     debugPrint('DPR Submit: Saving offline - upload failed or no internet...');
     
+    // Get project ID from context
+    final projectId = ProjectContext.activeProjectId;
+    
+    if (projectId == null) {
+      debugPrint('DPR Submit: Cannot save offline - no active project');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Cannot save DPR - no active project selected'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+      return;
+    }
+    
     // Save image paths for offline storage
     final imagePaths = _selectedImages.map((xFile) => xFile.path).toList();
     
@@ -179,6 +229,7 @@ class _DPRFormScreenState extends State<DPRFormScreen> {
       materialsUsed: _materialsUsedController.text.trim(),
       workersPresent: _workersPresentController.text.trim(),
       localImagePaths: imagePaths,
+      projectId: projectId,
     );
 
     debugPrint('DPR Submit: Offline save successful - will sync when connection improves');
