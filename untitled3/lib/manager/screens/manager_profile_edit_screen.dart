@@ -4,6 +4,8 @@ import '../models/manager_profile.dart';
 import '../services/manager_profile_service.dart';
 import '../../common/widgets/loading_overlay.dart';
 import '../../common/widgets/public_id_display.dart';
+import '../../common/services/logout_service.dart';
+import '../../common/localization/language_controller.dart';
 
 /// Field Manager Profile Edit Screen
 class ManagerProfileEditScreen extends StatefulWidget {
@@ -140,6 +142,8 @@ class _ManagerProfileEditScreenState extends State<ManagerProfileEditScreen>
                           _buildProfileCard(),
                           const SizedBox(height: 16),
                           _buildActionButtons(),
+                          const SizedBox(height: 16),
+                          _buildLogoutButton(),
                         ],
                       ),
                     ),
@@ -413,5 +417,34 @@ class _ManagerProfileEditScreenState extends State<ManagerProfileEditScreen>
       );
     }
   }
+
+  Widget _buildLogoutButton() {
+    final langController = LanguageController();
+    
+    return OutlinedButton(
+      onPressed: () => LogoutService.logout(context),
+      style: OutlinedButton.styleFrom(
+        foregroundColor: const Color(0xFFDC2626),
+        side: const BorderSide(color: Color(0xFFDC2626)),
+        padding: const EdgeInsets.symmetric(vertical: 16),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(8),
+        ),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          const Icon(Icons.logout, size: 20),
+          const SizedBox(width: 8),
+          Text(
+            langController.t('logout'),
+            style: const TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }
-         
