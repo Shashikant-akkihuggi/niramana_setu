@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../services/offline_sync_service.dart';
 import '../services/material_request_service.dart';
+import '../common/project_context.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'dart:ui' as ui;
 
 class _ThemeMR {
@@ -66,18 +68,48 @@ class _MaterialRequestScreenState extends State<MaterialRequestScreen> {
 
     setState(() => _isLoading = true);
 
+    final projectId = ProjectContext.activeProjectId;
+    if (projectId == null) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('No active project selected')),
+        );
+        setState(() => _isLoading = false);
+      }
+      return;
+    }
+
+    final currentUser = FirebaseAuth.instance.currentUser;
+    if (currentUser == null) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('User not authenticated')),
+        );
+        setState(() => _isLoading = false);
+      }
+      return;
+    }
+
     final req = {
-      'material': _materialController.text.trim(),
+      'materialName': _materialController.text.trim(),
       'quantity': _quantityController.text.trim(),
       'priority': _priority,
-      'dateNeeded': _neededBy.toIso8601String(),
-      'note': _noteController.text.trim(),
-      'status': 'pending',
-      'createdAt': DateTime.now().toIso8601String(),
+      'neededBy': _neededBy.toIso8601String(),
+      'notes': _noteController.text.trim(),
+      'status': 'Pending',
+      'requestedByUid': currentUser.uid,
+      'requestedAt': Timestamp.now(),
+      'engineerActionBy': null,
+      'engineerActionAt': null,
+      'engineerRemark': null,
     };
 
     try {
-      await FirebaseFirestore.instance.collection('material_requests').add(req);
+      await FirebaseFirestore.instance
+          .collection('projects')
+          .doc(projectId)
+          .collection('materials')
+          .add(req);
 
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(

@@ -15,6 +15,7 @@ import '../common/widgets/public_id_display.dart';
 import '../services/project_service.dart';
 import '../services/real_time_project_service.dart';
 import '../services/notification_service.dart';
+import '../services/material_request_service.dart';
 import '../common/models/project_model.dart';
 import '../common/notifications.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -784,12 +785,16 @@ class _DashboardTab extends StatelessWidget {
                               },
                             ),
                             _ActionCard(
-                              title: langController.t('project_status_dashboard'),
-                              icon: Icons.space_dashboard_outlined,
+                              title: langController.t('materials'),
+                              icon: Icons.inventory_2_outlined,
                               onTap: () {
-                                // TODO: Navigate to project status when implemented
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(content: Text('Project status coming soon')),
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (_) => OwnerMaterialsScreen(
+                                      projectId: ProjectContext.activeProjectId!,
+                                    ),
+                                  ),
                                 );
                               },
                             ),
@@ -1371,6 +1376,245 @@ class OwnerProjectsScreen extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+
+/// Owner Materials Screen - Read-only view of material requests
+class OwnerMaterialsScreen extends StatelessWidget {
+  final String projectId;
+  
+  const OwnerMaterialsScreen({super.key, required this.projectId});
+
+  static const Color primary = Color(0xFF136DEC);
+  static const Color accent = Color(0xFF7A5AF8);
+
+  Color _statusColor(String s) {
+    final status = s.toLowerCase();
+    switch (status) {
+      case 'approved':
+        return const Color(0xFF16A34A);
+      case 'rejected':
+        return const Color(0xFFDC2626);
+      default:
+        return const Color(0xFFF59E0B);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Materials'),
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+      ),
+      extendBodyBehindAppBar: true,
+      body: Stack(
+        children: [
+          // Background gradient
+          Container(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  primary.withValues(alpha: 0.12),
+                  accent.withValues(alpha: 0.10),
+                  Colors.white,
+                ],
+                stops: const [0.0, 0.45, 1.0],
+              ),
+            ),
+          ),
+          SafeArea(
+            child: StreamBuilder<List<MaterialRequestModel>>(
+              stream: MaterialRequestService.getOwnerMaterialRequests(projectId),
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Center(child: CircularProgressIndicator());
+                }
+                
+                if (snapshot.hasError) {
+                  return Center(
+                    child: Text('Error: ${snapshot.error}'),
+                  );
+                }
+                
+                final materials = snapshot.data ?? [];
+                
+                if (materials.isEmpty) {
+                  return const Center(
+                    child: Text(
+                      'No material requests yet',
+                      style: TextStyle(
+                        fontSize: 16,
+                        color: Color(0xFF6B7280),
+                      ),
+                    ),
+                  );
+                }
+                
+                return ListView.separated(
+                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+                  itemCount: materials.length,
+                  separatorBuilder: (_, __) => const SizedBox(height: 12),
+                  itemBuilder: (context, i) {
+                    final mat = materials[i];
+                    final c = _statusColor(mat.status);
+                    return ClipRRect(
+                      borderRadius: BorderRadius.circular(18),
+                      child: BackdropFilter(
+                        filter: ui.ImageFilter.blur(sigmaX: 16, sigmaY: 16),
+                        child: Container(
+                          decoration: BoxDecoration(
+                            color: Colors.white.withValues(alpha: 0.55),
+                            borderRadius: BorderRadius.circular(18),
+                            border: Border.all(color: Colors.white.withValues(alpha: 0.45)),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withValues(alpha: 0.06),
+                                blurRadius: 16,
+                                offset: const Offset(0, 8),
+                              ),
+                              BoxShadow(
+                                color: primary.withValues(alpha: 0.12),
+                                blurRadius: 24,
+                                spreadRadius: 1,
+                              ),
+                            ],
+                          ),
+                          padding: const EdgeInsets.all(14),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  Container(
+                                    height: 44,
+                                    width: 44,
+                                    decoration: BoxDecoration(
+                                      shape: BoxShape.circle,
+                                      gradient: const LinearGradient(
+                                        colors: [primary, accent],
+                                      ),
+                                    ),
+                                    child: const Icon(
+                                      Icons.inventory_2_rounded,
+                                      color: Colors.white,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          mat.material,
+                                          style: const TextStyle(
+                                            fontWeight: FontWeight.w800,
+                                            color: Color(0xFF1F2937),
+                                          ),
+                                        ),
+                                        const SizedBox(height: 4),
+                                        Text(
+                                          'Qty: ${mat.quantity}',
+                                          style: const TextStyle(
+                                            color: Color(0xFF4B5563),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 10,
+                                      vertical: 4,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: c.withValues(alpha: 0.12),
+                                      borderRadius: BorderRadius.circular(999),
+                                      border: Border.all(
+                                        color: c.withValues(alpha: 0.35),
+                                      ),
+                                    ),
+                                    child: Text(
+                                      mat.status,
+                                      style: TextStyle(
+                                        color: c,
+                                        fontWeight: FontWeight.w700,
+                                        fontSize: 12,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              if (mat.note.isNotEmpty) ...[
+                                const SizedBox(height: 10),
+                                const Text(
+                                  'Notes:',
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.w700,
+                                    color: Color(0xFF374151),
+                                    fontSize: 12,
+                                  ),
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  mat.note,
+                                  style: const TextStyle(
+                                    color: Color(0xFF4B5563),
+                                    fontSize: 13,
+                                  ),
+                                ),
+                              ],
+                              if (mat.comment != null && mat.comment!.isNotEmpty) ...[
+                                const SizedBox(height: 10),
+                                Container(
+                                  padding: const EdgeInsets.all(10),
+                                  decoration: BoxDecoration(
+                                    color: c.withValues(alpha: 0.08),
+                                    borderRadius: BorderRadius.circular(10),
+                                    border: Border.all(
+                                      color: c.withValues(alpha: 0.2),
+                                    ),
+                                  ),
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        'Engineer Remark:',
+                                        style: TextStyle(
+                                          fontWeight: FontWeight.w700,
+                                          color: c,
+                                          fontSize: 12,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 4),
+                                      Text(
+                                        mat.comment!,
+                                        style: const TextStyle(
+                                          color: Color(0xFF1F2937),
+                                          fontSize: 13,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ],
+                          ),
+                        ),
+                      ),
+                    );
+                  },
+                );
+              },
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

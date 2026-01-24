@@ -9,7 +9,7 @@ class MaterialRequestModel {
   final String priority;
   final DateTime dateNeeded;
   final String note;
-  final String status; // 'pending', 'approved', 'rejected'
+  final String status; // 'Pending', 'Approved', 'Rejected'
   final String requesterId; // Manager UID
   final String? reviewedBy; // Engineer UID
   final String? comment;
@@ -36,34 +36,52 @@ class MaterialRequestModel {
     return MaterialRequestModel(
       id: json['id'] ?? '',
       projectId: json['projectId'] ?? '',
-      material: json['material'] ?? '',
+      material: json['materialName'] ?? json['material'] ?? '',
       quantity: json['quantity'] ?? '',
       priority: json['priority'] ?? 'Medium',
-      dateNeeded: (json['dateNeeded'] as Timestamp?)?.toDate() ?? DateTime.now(),
-      note: json['note'] ?? '',
-      status: json['status'] ?? 'pending',
-      requesterId: json['requesterId'] ?? '',
-      reviewedBy: json['reviewedBy'],
-      comment: json['comment'],
-      createdAt: (json['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
-      reviewedAt: (json['reviewedAt'] as Timestamp?)?.toDate(),
+      dateNeeded: json['neededBy'] != null 
+          ? (json['neededBy'] is Timestamp 
+              ? (json['neededBy'] as Timestamp).toDate() 
+              : DateTime.parse(json['neededBy']))
+          : (json['dateNeeded'] is Timestamp 
+              ? (json['dateNeeded'] as Timestamp).toDate() 
+              : DateTime.now()),
+      note: json['notes'] ?? json['note'] ?? '',
+      status: json['status'] ?? 'Pending',
+      requesterId: json['requestedByUid'] ?? json['requesterId'] ?? '',
+      reviewedBy: json['engineerActionBy'] ?? json['reviewedBy'],
+      comment: json['engineerRemark'] ?? json['comment'],
+      createdAt: json['requestedAt'] != null
+          ? (json['requestedAt'] is Timestamp 
+              ? (json['requestedAt'] as Timestamp).toDate() 
+              : DateTime.parse(json['requestedAt']))
+          : (json['createdAt'] is Timestamp 
+              ? (json['createdAt'] as Timestamp).toDate() 
+              : DateTime.now()),
+      reviewedAt: json['engineerActionAt'] != null
+          ? (json['engineerActionAt'] is Timestamp 
+              ? (json['engineerActionAt'] as Timestamp).toDate() 
+              : null)
+          : (json['reviewedAt'] is Timestamp 
+              ? (json['reviewedAt'] as Timestamp).toDate() 
+              : null),
     );
   }
 
   Map<String, dynamic> toJson() {
     return {
       'projectId': projectId,
-      'material': material,
+      'materialName': material,
       'quantity': quantity,
       'priority': priority,
-      'dateNeeded': Timestamp.fromDate(dateNeeded),
-      'note': note,
+      'neededBy': Timestamp.fromDate(dateNeeded),
+      'notes': note,
       'status': status,
-      'requesterId': requesterId,
-      'reviewedBy': reviewedBy,
-      'comment': comment,
-      'createdAt': Timestamp.fromDate(createdAt),
-      'reviewedAt': reviewedAt != null ? Timestamp.fromDate(reviewedAt!) : null,
+      'requestedByUid': requesterId,
+      'engineerActionBy': reviewedBy,
+      'engineerRemark': comment,
+      'requestedAt': Timestamp.fromDate(createdAt),
+      'engineerActionAt': reviewedAt != null ? Timestamp.fromDate(reviewedAt!) : null,
     };
   }
 
@@ -129,11 +147,12 @@ class MaterialRequestService {
                 .collection('projects')
                 .doc(projectId)
                 .collection('materials')
-                .orderBy('createdAt', descending: true)
+                .where('status', isEqualTo: 'Pending')
+                .orderBy('requestedAt', descending: true)
                 .get();
             
             final requests = materialSnapshot.docs
-                .map((doc) => MaterialRequestModel.fromJson({...doc.data(), 'id': doc.id}))
+                .map((doc) => MaterialRequestModel.fromJson({...doc.data(), 'id': doc.id, 'projectId': projectId}))
                 .toList();
             
             allRequests.addAll(requests);
@@ -154,11 +173,11 @@ class MaterialRequestService {
         .collection('projects')
         .doc(projectId)
         .collection('materials')
-        .where('requesterId', isEqualTo: currentUserId)
-        .orderBy('createdAt', descending: true)
+        .where('requestedByUid', isEqualTo: currentUserId)
+        .orderBy('requestedAt', descending: true)
         .snapshots()
         .map((snapshot) => snapshot.docs
-            .map((doc) => MaterialRequestModel.fromJson({...doc.data(), 'id': doc.id}))
+            .map((doc) => MaterialRequestModel.fromJson({...doc.data(), 'id': doc.id, 'projectId': projectId}))
             .toList());
   }
 
@@ -169,11 +188,10 @@ class MaterialRequestService {
         .collection('projects')
         .doc(projectId)
         .collection('materials')
-        .where('status', whereIn: ['approved', 'pending'])
-        .orderBy('createdAt', descending: true)
+        .orderBy('requestedAt', descending: true)
         .snapshots()
         .map((snapshot) => snapshot.docs
-            .map((doc) => MaterialRequestModel.fromJson({...doc.data(), 'id': doc.id}))
+            .map((doc) => MaterialRequestModel.fromJson({...doc.data(), 'id': doc.id, 'projectId': projectId}))
             .toList());
   }
 
@@ -197,6 +215,16 @@ class MaterialRequestService {
     print('🔍 MaterialRequestService.updateMaterialRequestStatus - Using subcollection: projects/$projectId/materials');
     print('🔍 MaterialRequestService.updateMaterialRequestStatus - Updating requestId: $requestId with status: $status');
     
+    // Normalize status to correct case
+    String normalizedStatus;
+    if (status.toLowerCase() == 'approved') {
+      normalizedStatus = 'Approved';
+    } else if (status.toLowerCase() == 'rejected') {
+      normalizedStatus = 'Rejected';
+    } else {
+      normalizedStatus = 'Pending';
+    }
+    
     try {
       await _firestore
           .collection('projects')
@@ -204,10 +232,10 @@ class MaterialRequestService {
           .collection('materials')
           .doc(requestId)
           .update({
-        'status': status,
-        'engineerComment': comment,
-        'approvedByUid': currentUserId,
-        'approvedAt': Timestamp.now(),
+        'status': normalizedStatus,
+        'engineerRemark': comment,
+        'engineerActionBy': currentUserId,
+        'engineerActionAt': Timestamp.now(),
       });
       
       print('✅ MaterialRequestService.updateMaterialRequestStatus - Successfully updated material request');
@@ -264,7 +292,7 @@ class MaterialRequestService {
                 .collection('projects')
                 .doc(projectId)
                 .collection('materials')
-                .where('status', isEqualTo: 'pending')
+                .where('status', isEqualTo: 'Pending')
                 .get();
             
             totalCount += materialSnapshot.docs.length;
@@ -298,10 +326,10 @@ class MaterialRequestService {
         .collection('projects')
         .doc(projectId)
         .collection('materials')
-        .orderBy('createdAt', descending: true)
+        .orderBy('requestedAt', descending: true)
         .snapshots()
         .map((snapshot) => snapshot.docs
-            .map((doc) => MaterialRequestModel.fromJson({...doc.data(), 'id': doc.id}))
+            .map((doc) => MaterialRequestModel.fromJson({...doc.data(), 'id': doc.id, 'projectId': projectId}))
             .toList());
   }
 
@@ -312,7 +340,7 @@ class MaterialRequestService {
         .collection('projects')
         .doc(projectId)
         .collection('materials')
-        .where('status', isEqualTo: 'pending')
+        .where('status', isEqualTo: 'Pending')
         .snapshots()
         .map((snapshot) => snapshot.docs.length);
   }

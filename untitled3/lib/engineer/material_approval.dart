@@ -49,7 +49,8 @@ class _MaterialApprovalScreenState extends State<MaterialApprovalScreen> {
   }
 
   Color _statusColor(String s) {
-    switch (s) {
+    final status = s.toLowerCase();
+    switch (status) {
       case 'approved':
         return const Color(0xFF16A34A);
       case 'rejected':
@@ -177,7 +178,8 @@ class _ApprovalDetail extends StatelessWidget {
   const _ApprovalDetail({required this.request, required this.onDecision});
 
   Color _statusColor(String s) {
-    switch (s) {
+    final status = s.toLowerCase();
+    switch (status) {
       case 'approved':
         return const Color(0xFF16A34A);
       case 'rejected':

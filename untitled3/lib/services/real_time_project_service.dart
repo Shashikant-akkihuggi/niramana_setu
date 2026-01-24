@@ -70,7 +70,7 @@ class RealTimeProjectService {
                 .collection('projects')
                 .doc(projectId)
                 .collection('materials')
-                .where('status', isEqualTo: 'pending')
+                .where('status', isEqualTo: 'Pending')
                 .get();
             
             // Count pending DPRs
@@ -172,7 +172,7 @@ class RealTimeProjectService {
                 .collection('projects')
                 .doc(projectId)
                 .collection('materials')
-                .where('status', isEqualTo: 'pending')
+                .where('status', isEqualTo: 'Pending')
                 .get();
             
             totalRequests += materialRequests.docs.length;
@@ -249,8 +249,8 @@ class RealTimeProjectService {
                 .collection('projects')
                 .doc(projectId)
                 .collection('materials')
-                .where('requesterId', isEqualTo: currentUserId)
-                .where('status', isEqualTo: 'pending')
+                .where('requestedByUid', isEqualTo: currentUserId)
+                .where('status', isEqualTo: 'Pending')
                 .get();
             
             // Count pending DPRs to submit
@@ -398,7 +398,7 @@ class RealTimeProjectService {
         .collection('projects')
         .doc(projectId)
         .collection('materials')
-        .where('status', isEqualTo: 'pending')
+        .where('status', isEqualTo: 'Pending')
         .snapshots()
         .asyncMap((materialSnapshot) async {
           final dprSnapshot = await _firestore
