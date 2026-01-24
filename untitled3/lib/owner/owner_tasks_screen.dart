@@ -1,7 +1,5 @@
 import 'package:flutter/material.dart';
 import 'dart:ui' as ui;
-import '../services/task_service.dart';
-import '../common/project_context.dart';
 
 /// Owner Tasks Screen
 /// 

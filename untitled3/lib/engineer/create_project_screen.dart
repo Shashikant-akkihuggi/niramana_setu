@@ -5,7 +5,6 @@ import '../common/models/project_model.dart';
 import '../common/services/firestore_service.dart';
 import '../common/widgets/loading_overlay.dart';
 import '../services/user_service.dart';
-import '../services/project_reassignment_service.dart';
 
 /// Create Project Screen for Engineers
 /// Allows engineers to create new projects by selecting from existing users

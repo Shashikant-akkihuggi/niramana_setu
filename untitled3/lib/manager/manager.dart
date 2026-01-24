@@ -10,7 +10,6 @@ import '../common/services/logout_service.dart';
 import '../common/widgets/public_id_display.dart';
 import '../common/widgets/social_user_card.dart';
 import '../services/notification_service.dart';
-import '../services/real_time_project_service.dart';
 import '../services/manager_service.dart';
 import '../services/social_service.dart';
 import '../common/models/project_model.dart';

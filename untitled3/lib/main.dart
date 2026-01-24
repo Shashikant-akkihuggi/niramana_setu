@@ -20,7 +20,6 @@ import 'common/project_context.dart';
 import 'models/offline_dpr_model.dart';
 import 'common/services/connectivity_service.dart';
 import 'common/services/profile_repository.dart';
-import 'common/models/user_profile.dart';
 import 'common/models/user_profile_adapter.dart';
 import 'config/cloudinary_config.dart';
 import 'auth/register_screen.dart';

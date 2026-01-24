@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'dart:ui' as ui;
-import '../models/user_model.dart';
 import '../../services/user_service.dart';
 
 /// Widget to display user's public ID in profile sections

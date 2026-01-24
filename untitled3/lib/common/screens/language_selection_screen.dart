@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'dart:ui' as ui;
-import '../localization/app_language_controller.dart';
 import '../localization/language_controller.dart';
 import '../localization/language_keys.dart';
 

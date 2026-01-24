@@ -2,8 +2,6 @@ import 'package:flutter/material.dart';
 import 'dart:ui' as ui;
 import 'package:hive_flutter/hive_flutter.dart';
 import '../../services/cost_estimation_service.dart';
-import '../../services/milestone_repository.dart';
-import '../../models/milestone.dart';
 
 class CostEstimationCard extends StatefulWidget {
   const CostEstimationCard({super.key});

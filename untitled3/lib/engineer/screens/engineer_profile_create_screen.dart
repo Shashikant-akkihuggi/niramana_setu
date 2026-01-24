@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'dart:ui' as ui;
-import '../models/engineer_profile.dart';
 import '../services/engineer_profile_service.dart';
 import '../../common/widgets/loading_overlay.dart';
 

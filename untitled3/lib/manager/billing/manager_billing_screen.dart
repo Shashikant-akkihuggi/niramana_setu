@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'dart:ui' as ui;
-import 'package:firebase_auth/firebase_auth.dart';
 import '../../common/project_context.dart';
 import '../../services/gst_bill_service.dart';
 import 'manual_bill_entry_screen.dart';

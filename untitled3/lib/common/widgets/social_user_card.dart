@@ -120,16 +120,14 @@ class SocialUserCard extends StatelessWidget {
                         ),
                       ],
                     ),
-                    if (user.createdAt != null) ...[
-                      const SizedBox(height: 4),
-                      Text(
-                        'Joined ${_formatDate(user.createdAt)}',
-                        style: const TextStyle(
-                          color: Color(0xFF9CA3AF),
-                          fontSize: 11,
-                        ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Joined ${_formatDate(user.createdAt)}',
+                      style: const TextStyle(
+                        color: Color(0xFF9CA3AF),
+                        fontSize: 11,
                       ),
-                    ],
+                    ),
                   ],
                 ),
               ),

@@ -4,19 +4,16 @@ import 'gallery.dart';
 import 'invoices.dart';
 import 'owner_profile_tab.dart';
 import 'owner_project_card.dart';
-import 'project_status_dashboard.dart';
 import 'direct_communication.dart';
 import 'owner_tasks_screen.dart';
 import 'screens/owner_attendance_view_screen.dart';
 import 'screens/owner_petty_cash_summary_screen.dart';
 import 'plot_analysis/plot_entry_screen.dart';
-import '../common/screens/milestone_timeline_screen.dart';
 import '../common/screens/milestone_hub_screen.dart';
 import '../common/services/logout_service.dart';
 import '../common/localization/language_controller.dart';
 import '../common/widgets/public_id_display.dart';
 import '../common/widgets/social_user_card.dart';
-import '../services/project_service.dart';
 import '../services/real_time_project_service.dart';
 import '../services/notification_service.dart';
 import '../services/material_request_service.dart';
@@ -28,7 +25,6 @@ import '../common/models/project_model.dart';
 import '../common/notifications.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:hive_flutter/hive_flutter.dart';
 import '../common/project_context.dart';
 
 class OwnerDashboard extends StatefulWidget {

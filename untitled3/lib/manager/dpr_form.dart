@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import '../services/offline_sync_service.dart';
 import 'dart:ui' as ui;
 import 'package:image_picker/image_picker.dart';
@@ -7,7 +6,6 @@ import 'dart:io';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import '../services/cloudinary_service.dart';
 import '../services/image_compression_service.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import '../common/project_context.dart';
 import '../services/dpr_service.dart';
 
