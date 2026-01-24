@@ -210,13 +210,13 @@ class ProjectModel extends HiveObject {
   }
 
   /// Check if project is pending owner approval
-  bool get isPendingOwnerApproval => status == 'pending_owner_approval';
+  bool get isPendingOwnerApproval => ownerApprovedAt == null;
 
   /// Check if project is pending manager acceptance
-  bool get isPendingManagerAcceptance => status == 'approved_by_owner';
+  bool get isPendingManagerAcceptance => ownerApprovedAt != null && managerAcceptedAt == null;
 
   /// Check if project is active
-  bool get isActive => status == 'active';
+  bool get isActive => managerAcceptedAt != null;
 
   /// Get status display text
   String get statusDisplayText {

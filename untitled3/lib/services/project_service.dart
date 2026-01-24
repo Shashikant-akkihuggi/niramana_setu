@@ -106,10 +106,25 @@ class ProjectService {
       throw Exception('User not authenticated');
     }
 
-    await _firestore.collection('projects').doc(projectId).update({
-      'status': 'approved_by_owner',
+    // DEBUG: Log authentication and request details
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    print('DEBUG → Logged-in UID: $uid');
+    print('DEBUG → Project ID: $projectId');
+
+    // DEBUG: Create payload variable to inspect
+    final payload = {
+      'ownerApproved': true,
       'ownerApprovedAt': FieldValue.serverTimestamp(),
-    });
+      'managerAcceptedAt': null,
+      'status': 'Owner Approved',
+      'updatedAt': FieldValue.serverTimestamp(),
+    };
+    print('DEBUG → Payload keys: ${payload.keys}');
+
+    await FirebaseFirestore.instance
+        .collection('projects')
+        .doc(projectId)
+        .update(payload);
   }
 
   /// Manager accepts project with complete user state management
