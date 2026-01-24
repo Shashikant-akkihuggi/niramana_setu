@@ -141,6 +141,138 @@ class CloudinaryService {
     return uploadedUrls;
   }
 
+  /// Upload attendance photo to Cloudinary with custom folder structure
+  /// folder: attendance/{projectId}/{date}
+  /// public_id: manager_{managerId}
+  /// Returns the secure URL of the uploaded image
+  static Future<String?> uploadAttendancePhoto({
+    required File imageFile,
+    required String projectId,
+    required String date,
+    required String managerId,
+  }) async {
+    try {
+      final fileSize = await imageFile.length();
+      debugPrint('Cloudinary: Starting attendance photo upload - File size: ${(fileSize / 1024 / 1024).toStringAsFixed(2)} MB');
+      debugPrint('Cloudinary: Folder: attendance/$projectId/$date');
+      debugPrint('Cloudinary: Public ID: manager_$managerId');
+      
+      // First upload attempt
+      String? result = await _attemptAttendanceUpload(
+        imageFile: imageFile,
+        projectId: projectId,
+        date: date,
+        managerId: managerId,
+      );
+      
+      if (result != null) {
+        debugPrint('Cloudinary: Attendance photo upload successful on first attempt');
+        return result;
+      }
+      
+      // Retry after delay
+      debugPrint('Cloudinary: First attempt failed, retrying after ${_retryDelaySeconds}s...');
+      await Future.delayed(Duration(seconds: _retryDelaySeconds));
+      
+      result = await _attemptAttendanceUpload(
+        imageFile: imageFile,
+        projectId: projectId,
+        date: date,
+        managerId: managerId,
+      );
+      
+      if (result != null) {
+        debugPrint('Cloudinary: Attendance photo upload successful on retry');
+        return result;
+      }
+      
+      debugPrint('Cloudinary: Attendance photo upload failed after retry');
+      return null;
+      
+    } catch (e, stackTrace) {
+      debugPrint('Cloudinary: Attendance photo upload process error - $e');
+      return null;
+    }
+  }
+
+  /// Attempt a single attendance photo upload to Cloudinary
+  static Future<String?> _attemptAttendanceUpload({
+    required File imageFile,
+    required String projectId,
+    required String date,
+    required String managerId,
+  }) async {
+    try {
+      final request = http.MultipartRequest('POST', Uri.parse(CloudinaryConfig.apiBaseUrl));
+      
+      // Set proper headers
+      request.headers.addAll({
+        'Accept': 'application/json',
+        'User-Agent': 'NiramanaSetu/1.0',
+      });
+      
+      // Add required fields for unsigned upload with custom folder structure
+      request.fields['upload_preset'] = CloudinaryConfig.uploadPreset;
+      request.fields['folder'] = 'attendance/$projectId/$date';
+      request.fields['public_id'] = 'manager_$managerId';
+      request.fields['resource_type'] = 'image';
+      
+      // Add the image file
+      final multipartFile = await http.MultipartFile.fromPath(
+        'file',
+        imageFile.path,
+        filename: 'attendance_photo.jpg',
+      );
+      request.files.add(multipartFile);
+      
+      debugPrint('Cloudinary: Sending attendance photo request to ${CloudinaryConfig.apiBaseUrl}');
+      
+      // Send request with timeout
+      final response = await request.send().timeout(
+        Duration(seconds: _timeoutSeconds),
+        onTimeout: () {
+          throw TimeoutException('Cloudinary upload timeout', Duration(seconds: _timeoutSeconds));
+        },
+      );
+      
+      final responseBody = await response.stream.bytesToString();
+      
+      debugPrint('Cloudinary: Response status: ${response.statusCode}');
+      
+      if (response.statusCode == 200) {
+        final jsonResponse = json.decode(responseBody);
+        final secureUrl = jsonResponse['secure_url'] as String?;
+        
+        if (secureUrl != null && secureUrl.isNotEmpty) {
+          debugPrint('Cloudinary: Attendance photo upload successful - URL: $secureUrl');
+          return secureUrl;
+        } else {
+          debugPrint('Cloudinary: Response missing secure_url field');
+          return null;
+        }
+      } else {
+        debugPrint('Cloudinary: Attendance photo upload failed - Status: ${response.statusCode}');
+        debugPrint('Cloudinary: Response body: $responseBody');
+        if (response.statusCode >= 500) {
+          debugPrint('Cloudinary: Server error (5xx) - Cloudinary service issue');
+        } else if (response.statusCode == 400) {
+          debugPrint('Cloudinary: Bad request (400) - Check upload preset and folder structure');
+        }
+        return null;
+      }
+      
+    } on TimeoutException catch (e) {
+      debugPrint('Cloudinary: Attendance photo upload timeout - $e');
+      return null;
+    } on SocketException catch (e) {
+      debugPrint('Cloudinary: Network error - $e');
+      return null;
+    } catch (e) {
+      debugPrint('Cloudinary: Attendance photo upload attempt error - $e');
+      return null;
+    }
+  }
+
   /// Check if Cloudinary service is properly configured
   static bool isConfigured() {
     return CloudinaryConfig.isConfigured;

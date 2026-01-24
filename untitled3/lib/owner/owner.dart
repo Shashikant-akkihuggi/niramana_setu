@@ -842,6 +842,19 @@ class _DashboardTab extends StatelessWidget {
                               },
                             ),
                             _ActionCard(
+                              title: 'Petty Cash',
+                              icon: Icons.account_balance_wallet,
+                              onTap: () {
+                                // TODO: Navigate to Read-only Petty Cash summary
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text('Petty Cash Summary - Coming Soon'),
+                                    backgroundColor: Colors.blue,
+                                  ),
+                                );
+                              },
+                            ),
+                            _ActionCard(
                               title: 'Attendance',
                               icon: Icons.how_to_reg_outlined,
                               onTap: () {

@@ -593,6 +593,20 @@ class EngineerHomeScreen extends StatelessWidget {
                     );
                   },
                 ),
+                _ActionCard(
+                  title: 'Petty Cash',
+                  icon: Icons.account_balance_wallet,
+                  notifications: 0,
+                  onTap: () {
+                    // TODO: Navigate to Petty Cash Review screen
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Petty Cash Review - Coming Soon'),
+                        backgroundColor: Colors.blue,
+                      ),
+                    );
+                  },
+                ),
                 StreamBuilder<int>(
                   stream: ProcurementService.getPendingBillsCount(ProjectContext.activeProjectId!),
                   builder: (context, snapshot) {

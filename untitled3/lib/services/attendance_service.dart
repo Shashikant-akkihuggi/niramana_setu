@@ -73,7 +73,8 @@ class AttendanceRecord {
   final String recordedBy; // Manager UID
   final DateTime createdAt;
   final DateTime? updatedAt;
-  final String? photoUrl; // Attendance photo URL
+  final String? photoUrl; // Attendance photo URL (Cloudinary)
+  final String? photoProvider; // Photo storage provider (e.g., "cloudinary")
   final DateTime? photoCapturedAt; // When photo was captured
   final String? photoBy; // Manager UID who captured photo
 
@@ -86,6 +87,7 @@ class AttendanceRecord {
     required this.createdAt,
     this.updatedAt,
     this.photoUrl,
+    this.photoProvider,
     this.photoCapturedAt,
     this.photoBy,
   });
@@ -102,6 +104,7 @@ class AttendanceRecord {
       createdAt: (json['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
       updatedAt: (json['updatedAt'] as Timestamp?)?.toDate(),
       photoUrl: json['photoUrl'] as String?,
+      photoProvider: json['photoProvider'] as String?,
       photoCapturedAt: (json['photoCapturedAt'] as Timestamp?)?.toDate(),
       photoBy: json['photoBy'] as String?,
     );
@@ -116,6 +119,7 @@ class AttendanceRecord {
       'createdAt': Timestamp.fromDate(createdAt),
       'updatedAt': updatedAt != null ? Timestamp.fromDate(updatedAt!) : null,
       'photoUrl': photoUrl,
+      'photoProvider': photoProvider,
       'photoCapturedAt': photoCapturedAt != null ? Timestamp.fromDate(photoCapturedAt!) : null,
       'photoBy': photoBy,
     };
@@ -130,6 +134,7 @@ class AttendanceRecord {
     DateTime? createdAt,
     DateTime? updatedAt,
     String? photoUrl,
+    String? photoProvider,
     DateTime? photoCapturedAt,
     String? photoBy,
   }) {
@@ -142,6 +147,7 @@ class AttendanceRecord {
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
       photoUrl: photoUrl ?? this.photoUrl,
+      photoProvider: photoProvider ?? this.photoProvider,
       photoCapturedAt: photoCapturedAt ?? this.photoCapturedAt,
       photoBy: photoBy ?? this.photoBy,
     );

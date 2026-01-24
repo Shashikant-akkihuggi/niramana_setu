@@ -5,12 +5,14 @@ import 'dpr_form.dart';
 import 'material_request.dart';
 import 'manager_tasks_screen.dart';
 import 'billing/manager_billing_screen.dart';
+import 'petty_cash_wallet_screen.dart';
 import '../services/real_time_project_service.dart';
 import '../services/dpr_service.dart';
 import '../services/material_request_service.dart';
 import '../services/attendance_service.dart';
 import '../services/project_service.dart';
 import '../services/manager_service.dart';
+import '../services/cloudinary_service.dart';
 import '../models/dpr_model.dart';
 import '../common/models/project_model.dart';
 import '../common/project_context.dart';
@@ -19,7 +21,6 @@ import 'manager.dart';
 import 'manager_project_card.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:firebase_storage/firebase_storage.dart';
 import 'package:image_picker/image_picker.dart';
 
 import 'screens/enhanced_mr_screen.dart';
@@ -490,6 +491,18 @@ class ManagerHomeScreen extends StatelessWidget {
                             Navigator.push(
                               context,
                               MaterialPageRoute(builder: (_) => const ManagerTasksScreen()),
+                            );
+                          },
+                        ),
+                        _FeatureCard(
+                          title: 'Petty Cash',
+                          icon: Icons.account_balance_wallet,
+                          onTap: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => const PettyCashWalletScreen(),
+                              ),
                             );
                           },
                         ),
@@ -1028,25 +1041,26 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
       final currentUserId = FirebaseAuth.instance.currentUser?.uid;
       if (currentUserId == null) throw Exception('User not authenticated');
       
-      // Upload to Firebase Storage
-      final storageRef = FirebaseStorage.instance
-          .ref()
-          .child('attendance_photos')
-          .child(_selectedProjectId!)
-          .child(_dateKey)
-          .child('$currentUserId.jpg');
+      // Upload to Cloudinary with structured folder
+      final cloudinaryUrl = await CloudinaryService.uploadAttendancePhoto(
+        imageFile: _capturedPhoto!,
+        projectId: _selectedProjectId!,
+        date: _dateKey,
+        managerId: currentUserId,
+      );
       
-      final uploadTask = await storageRef.putFile(_capturedPhoto!);
-      final downloadUrl = await uploadTask.ref.getDownloadURL();
+      if (cloudinaryUrl == null) {
+        throw Exception('Cloudinary upload failed');
+      }
       
       setState(() {
-        _uploadedPhotoUrl = downloadUrl;
+        _uploadedPhotoUrl = cloudinaryUrl;
         _isUploadingPhoto = false;
       });
       
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Photo uploaded successfully'),
+          content: Text('Photo uploaded successfully to Cloudinary'),
           backgroundColor: Colors.green,
         ),
       );
@@ -1070,11 +1084,11 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
   Future<void> _saveAttendance() async {
     if (_selectedProjectId == null) return;
     
-    // Validate photo is captured
+    // Validate photo is captured and uploaded
     if (_uploadedPhotoUrl == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Please capture attendance photo before saving'),
+          content: Text('Please capture and upload attendance photo before saving'),
           backgroundColor: Colors.orange,
         ),
       );
@@ -1095,6 +1109,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
         recordedBy: currentUserId,
         createdAt: DateTime.now(),
         photoUrl: _uploadedPhotoUrl,
+        photoProvider: 'cloudinary',
         photoCapturedAt: DateTime.now(),
         photoBy: currentUserId,
       );
