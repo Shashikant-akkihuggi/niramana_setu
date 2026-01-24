@@ -53,24 +53,38 @@ class OwnerGalleryScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.transparent,
-      appBar: AppBar(
-        title: const Text('Progress Gallery'),
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-      ),
-      extendBodyBehindAppBar: true,
       body: Stack(
         children: [
           _Background(),
           SafeArea(
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const SizedBox(height: 8),
-                  // Grid - FIX: Responsive grid with better aspect ratio handling
-                  Expanded(
+            child: Column(
+              children: [
+                // Header bar matching Owner Dashboard style
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+                  child: Row(
+                    children: [
+                      IconButton(
+                        icon: const Icon(Icons.arrow_back),
+                        onPressed: () => Navigator.of(context).pop(),
+                        color: const Color(0xFF1F1F1F),
+                      ),
+                      const SizedBox(width: 8),
+                      const Text(
+                        'Progress Gallery',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w800,
+                          color: Color(0xFF1F1F1F),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                // Grid - FIX: Responsive grid with better aspect ratio handling
+                Expanded(
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
                     child: StreamBuilder<List<_GalleryItem>>(
                       stream: _items(),
                       builder: (context, snapshot) {
@@ -95,8 +109,8 @@ class OwnerGalleryScreen extends StatelessWidget {
                       },
                     ),
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
           ),
         ],
