@@ -141,6 +141,14 @@ class OfflineSyncService {
       try {
         debugPrint('OfflineSync: Processing pending DPR ${dpr.id}...');
         
+        // Validate project ID
+        if (dpr.projectId == null || dpr.projectId!.isEmpty) {
+          debugPrint('OfflineSync: DPR ${dpr.id} has no projectId, skipping...');
+          // Delete invalid entry
+          await _offlineDprBox.delete(dpr.key);
+          continue;
+        }
+        
         // Step 1: Upload images to Cloudinary first
         List<String> cloudinaryUrls = [];
         if (dpr.localImagePaths.isNotEmpty) {
@@ -163,11 +171,36 @@ class OfflineSyncService {
           }
         }
         
-        // Step 2: Save to Firestore with Cloudinary URLs
-        final firestoreData = dpr.toFirestoreMap(cloudinaryUrls: cloudinaryUrls);
-        await FirebaseFirestore.instance.collection('dpr_reports').add(firestoreData);
+        // Step 2: Parse workersPresent as int
+        int workersCount = 0;
+        try {
+          // Try to parse as number, if it fails, count comma-separated names
+          workersCount = int.tryParse(dpr.workersPresent) ?? dpr.workersPresent.split(',').length;
+        } catch (e) {
+          workersCount = 0;
+        }
         
-        // Step 3: Delete from Hive on success
+        // Step 3: Save one DPR document with all images to project-scoped Firestore path
+        debugPrint('OfflineSync: Saving DPR with ${cloudinaryUrls.length} images to projects/${dpr.projectId}/dpr');
+        
+        await FirebaseFirestore.instance
+            .collection('projects')
+            .doc(dpr.projectId!)
+            .collection('dpr')
+            .add({
+          'workDescription': dpr.workDone,
+          'materialsUsed': dpr.materialsUsed,
+          'workersPresent': workersCount,
+          'images': cloudinaryUrls,
+          'status': 'Pending',
+          'uploadedByUid': dpr.createdBy,
+          'uploadedAt': FieldValue.serverTimestamp(),
+          'engineerComment': null,
+        });
+        
+        debugPrint('OfflineSync: DPR saved to Firestore');
+        
+        // Step 4: Delete from Hive on success
         await _offlineDprBox.delete(dpr.key);
         debugPrint("OfflineSync: DPR ${dpr.id} synced successfully and removed from offline storage");
         
@@ -189,7 +222,41 @@ class OfflineSyncService {
         // Convert Map<dynamic, dynamic> to Map<String, dynamic> if needed
         final payload = Map<String, dynamic>.from(entry['payload'] as Map);
         
-        await FirebaseFirestore.instance.collection('dpr_reports').add(payload);
+        // Legacy entries without projectId cannot be synced to project-scoped path
+        // Delete them to prevent permission errors
+        if (payload['projectId'] == null || payload['projectId'].toString().isEmpty) {
+          debugPrint("OfflineSync: Legacy DPR ${entry['id']} has no projectId, removing...");
+          await _dprBox.delete(entry['id']);
+          continue;
+        }
+        
+        // Parse workersPresent as int
+        int workersCount = 0;
+        try {
+          final workersText = payload['workersPresent']?.toString() ?? '0';
+          workersCount = int.tryParse(workersText) ?? workersText.split(',').length;
+        } catch (e) {
+          workersCount = 0;
+        }
+        
+        // Save to project-scoped path as one document with all images
+        final projectId = payload['projectId'].toString();
+        final imageUrls = payload['imageUrls'] as List? ?? [];
+        
+        await FirebaseFirestore.instance
+            .collection('projects')
+            .doc(projectId)
+            .collection('dpr')
+            .add({
+          'workDescription': payload['workDone'] ?? '',
+          'materialsUsed': payload['materialsUsed'] ?? '',
+          'workersPresent': workersCount,
+          'images': imageUrls,
+          'status': 'Pending',
+          'uploadedByUid': payload['createdBy'],
+          'uploadedAt': FieldValue.serverTimestamp(),
+          'engineerComment': null,
+        });
         
         // Delete from Hive on success
         await _dprBox.delete(entry['id']);
