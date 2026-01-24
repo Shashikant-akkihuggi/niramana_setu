@@ -145,6 +145,9 @@ class UserModel extends HiveObject {
   /// Check if user is an engineer
   bool get isEngineer => role.toLowerCase() == 'projectengineer';
 
+  /// Check if user is a purchase manager
+  bool get isPurchaseManager => role.toLowerCase() == 'purchasemanager';
+
   /// Get role display name
   String get roleDisplayName {
     switch (role.toLowerCase()) {
@@ -154,6 +157,8 @@ class UserModel extends HiveObject {
         return 'Manager';
       case 'projectengineer':
         return 'Engineer';
+      case 'purchasemanager':
+        return 'Purchase Manager';
       default:
         return role;
     }

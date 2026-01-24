@@ -213,7 +213,9 @@ class UserService {
       if (expectedRole == 'ownerClient') {
         roleValid = userData.role == 'owner' || userData.role == 'ownerClient';
       } else if (expectedRole == 'manager') {
-        roleValid = userData.role == 'manager' || userData.role == 'fieldManager';
+        roleValid = userData.role == 'manager' || userData.role == 'fieldManager' || userData.role == 'fieldmanager';
+      } else if (expectedRole == 'purchaseManager') {
+        roleValid = userData.role == 'purchasemanager' || userData.role == 'purchaseManager';
       }
 
       if (!roleValid) {

@@ -2,9 +2,12 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 
 /// GST Bill Model - Comprehensive model for GST-compliant billing
 /// Supports both manual entry and OCR-extracted bills
+/// Linked to Purchase Order and GRN for procurement workflow
 class GSTBillModel {
   final String id;
   final String projectId;
+  final String? poId; // Purchase Order ID (optional for backward compatibility)
+  final String? grnId; // GRN ID (optional for backward compatibility)
   final String createdBy; // Manager UID
   final DateTime createdAt;
   
@@ -50,6 +53,8 @@ class GSTBillModel {
   GSTBillModel({
     required this.id,
     required this.projectId,
+    this.poId,
+    this.grnId,
     required this.createdBy,
     required this.createdAt,
     required this.billNumber,
@@ -87,6 +92,8 @@ class GSTBillModel {
     return GSTBillModel(
       id: doc.id,
       projectId: data['projectId'] ?? '',
+      poId: data['poId'],
+      grnId: data['grnId'],
       createdBy: data['createdBy'] ?? '',
       createdAt: (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
       billNumber: data['billNumber'] ?? '',
@@ -123,6 +130,8 @@ class GSTBillModel {
   Map<String, dynamic> toFirestore() {
     return {
       'projectId': projectId,
+      'poId': poId,
+      'grnId': grnId,
       'createdBy': createdBy,
       'createdAt': Timestamp.fromDate(createdAt),
       'billNumber': billNumber,
@@ -159,6 +168,8 @@ class GSTBillModel {
   GSTBillModel copyWith({
     String? id,
     String? projectId,
+    String? poId,
+    String? grnId,
     String? createdBy,
     DateTime? createdAt,
     String? billNumber,
@@ -192,6 +203,8 @@ class GSTBillModel {
     return GSTBillModel(
       id: id ?? this.id,
       projectId: projectId ?? this.projectId,
+      poId: poId ?? this.poId,
+      grnId: grnId ?? this.grnId,
       createdBy: createdBy ?? this.createdBy,
       createdAt: createdAt ?? this.createdAt,
       billNumber: billNumber ?? this.billNumber,

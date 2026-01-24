@@ -63,6 +63,18 @@ class ProjectModel extends HiveObject {
   @HiveField(13)
   final String? managerName;
 
+  /// Purchase Manager's UID (for Firestore queries)
+  @HiveField(14)
+  final String? purchaseManagerUid;
+
+  /// Purchase Manager's public ID
+  @HiveField(15)
+  final String? purchaseManagerId;
+
+  /// Purchase Manager's name (cached for display)
+  @HiveField(16)
+  final String? purchaseManagerName;
+
   ProjectModel({
     required this.id,
     required this.projectName,
@@ -78,6 +90,9 @@ class ProjectModel extends HiveObject {
     this.managerUid,
     this.ownerName,
     this.managerName,
+    this.purchaseManagerUid,
+    this.purchaseManagerId,
+    this.purchaseManagerName,
   });
 
   /// Create ProjectModel from Firestore document
@@ -86,9 +101,10 @@ class ProjectModel extends HiveObject {
     return ProjectModel(
       id: doc.id,
       projectName: data['projectName'] ?? '',
-      createdBy: data['engineerId'] ?? data['createdBy'] ?? '', // Read engineerId first, fallback to createdBy
+      createdBy: data['engineerId'] ?? data['createdBy'] ?? '',
       ownerId: data['ownerPublicId'] ?? data['ownerId'] ?? '',
       managerId: data['managerPublicId'] ?? data['managerId'] ?? '',
+      purchaseManagerId: data['purchaseManagerPublicId'] ?? data['purchaseManagerId'] ?? '',
       status: data['status'] ?? 'pending_owner_approval',
       createdAt: (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
       ownerApprovedAt: (data['ownerApprovedAt'] as Timestamp?)?.toDate(),
@@ -98,6 +114,8 @@ class ProjectModel extends HiveObject {
       managerUid: data['managerUid'],
       ownerName: data['ownerName'],
       managerName: data['managerName'],
+      purchaseManagerUid: data['purchaseManagerUid'],
+      purchaseManagerName: data['purchaseManagerName'],
     );
   }
 
@@ -128,6 +146,9 @@ class ProjectModel extends HiveObject {
       managerUid: map['managerUid'],
       ownerName: map['ownerName'],
       managerName: map['managerName'],
+      purchaseManagerUid: map['purchaseManagerUid'],
+      purchaseManagerId: map['purchaseManagerId'],
+      purchaseManagerName: map['purchaseManagerName'],
     );
   }
 
@@ -135,12 +156,11 @@ class ProjectModel extends HiveObject {
   Map<String, dynamic> toFirestore() {
     return {
       'projectName': projectName,
-      'engineerId': createdBy, // Required by Firestore rules
-      'createdBy': createdBy, // Keep for backward compatibility
-      'ownerPublicId': ownerId, // Store publicId for display
-      'managerPublicId': managerId, // Store publicId for display
-      'ownerId': ownerUid ?? ownerId, // Store Firebase UID for queries (fallback to publicId for backward compatibility)
-      'managerId': managerUid ?? managerId, // Store Firebase UID for queries (fallback to publicId for backward compatibility)
+      'engineerId': createdBy,
+      'createdBy': createdBy,
+      'ownerId': ownerUid ?? ownerId,
+      'managerId': managerUid ?? managerId,
+      'purchaseManagerId': purchaseManagerUid ?? purchaseManagerId,
       'status': status,
       'createdAt': Timestamp.fromDate(createdAt),
       if (ownerApprovedAt != null)
@@ -149,8 +169,13 @@ class ProjectModel extends HiveObject {
         'managerAcceptedAt': Timestamp.fromDate(managerAcceptedAt!),
       if (ownerUid != null) 'ownerUid': ownerUid,
       if (managerUid != null) 'managerUid': managerUid,
+      if (purchaseManagerUid != null) 'purchaseManagerUid': purchaseManagerUid,
+      if (ownerId != null) 'ownerPublicId': ownerId,
+      if (managerId != null) 'managerPublicId': managerId,
+      if (purchaseManagerId != null) 'purchaseManagerPublicId': purchaseManagerId,
       if (ownerName != null) 'ownerName': ownerName,
       if (managerName != null) 'managerName': managerName,
+      if (purchaseManagerName != null) 'purchaseManagerName': purchaseManagerName,
     };
   }
 
@@ -171,6 +196,9 @@ class ProjectModel extends HiveObject {
       'managerUid': managerUid,
       'ownerName': ownerName,
       'managerName': managerName,
+      'purchaseManagerUid': purchaseManagerUid,
+      'purchaseManagerId': purchaseManagerId,
+      'purchaseManagerName': purchaseManagerName,
     };
   }
 
@@ -190,6 +218,9 @@ class ProjectModel extends HiveObject {
     String? managerUid,
     String? ownerName,
     String? managerName,
+    String? purchaseManagerUid,
+    String? purchaseManagerId,
+    String? purchaseManagerName,
   }) {
     return ProjectModel(
       id: id ?? this.id,
@@ -206,6 +237,9 @@ class ProjectModel extends HiveObject {
       managerUid: managerUid ?? this.managerUid,
       ownerName: ownerName ?? this.ownerName,
       managerName: managerName ?? this.managerName,
+      purchaseManagerUid: purchaseManagerUid ?? this.purchaseManagerUid,
+      purchaseManagerId: purchaseManagerId ?? this.purchaseManagerId,
+      purchaseManagerName: purchaseManagerName ?? this.purchaseManagerName,
     );
   }
 

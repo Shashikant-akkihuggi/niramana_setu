@@ -5,6 +5,7 @@ import 'dart:math';
 import 'engineer/engineer_dashboard.dart';
 import 'owner/owner.dart';
 import 'manager/manager.dart';
+import 'purchase_manager/screens/purchase_manager_dashboard.dart';
 import 'firebase_options.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'services/offline_sync_service.dart';
@@ -208,6 +209,12 @@ class _AuthWrapperState extends State<AuthWrapper> {
             print("✅ Navigating to Owner Dashboard");
             setState(() {
               _homeWidget = const OwnerDashboard();
+              _isLoading = false;
+            });
+          } else if (role == 'purchaseManager' || role == 'purchasemanager') {
+            print("✅ Navigating to Purchase Manager Dashboard");
+            setState(() {
+              _homeWidget = const PurchaseManagerDashboard();
               _isLoading = false;
             });
           } else {
@@ -747,6 +754,48 @@ class RoleSelectionScreen extends StatelessWidget {
                               MaterialPageRoute(
                                 builder: (_) => const LoginScreen(
                                   selectedRole: 'ownerClient',
+                                ),
+                              ),
+                            );
+                          }
+                        },
+                      ),
+                      const SizedBox(height: 12),
+                      _BigGlassRoleButton(
+                        height: cardHeight,
+                        icon: Icons.shopping_cart,
+                        title: 'Purchase Manager',
+                        subtitle: 'Manage material procurement and POs',
+                        glowColor: accent,
+                        onTap: () async {
+                          final user = FirebaseAuth.instance.currentUser;
+                          if (user != null) {
+                            // User is logged in via Google, store role and navigate to dashboard
+                            await FirebaseFirestore.instance
+                                .collection('users')
+                                .doc(user.uid)
+                                .set({
+                                  'role': 'purchaseManager',
+                                  'email': user.email,
+                                  'fullName': user.displayName,
+                                  'profilePhotoUrl': user.photoURL ?? '',
+                                  'profileCompletion': 100,
+                                  'isActive': true,
+                                  'createdAt': FieldValue.serverTimestamp(),
+                                  'lastUpdatedAt': FieldValue.serverTimestamp(),
+                                }, SetOptions(merge: true));
+                            if (!context.mounted) return;
+                            Navigator.of(context).pushReplacement(
+                              MaterialPageRoute(
+                                builder: (_) => const PurchaseManagerDashboard(),
+                              ),
+                            );
+                          } else {
+                            // Not logged in, go to login screen
+                            Navigator.of(context).push(
+                              MaterialPageRoute(
+                                builder: (_) => const LoginScreen(
+                                  selectedRole: 'purchaseManager',
                                 ),
                               ),
                             );
