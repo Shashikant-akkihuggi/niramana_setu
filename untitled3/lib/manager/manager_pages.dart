@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'dart:ui' as ui;
+import 'dart:io';
 import 'dpr_form.dart';
 import 'material_request.dart';
 import 'manager_tasks_screen.dart';
@@ -18,6 +19,8 @@ import 'manager.dart';
 import 'manager_project_card.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_storage/firebase_storage.dart';
+import 'package:image_picker/image_picker.dart';
 
 import 'screens/enhanced_mr_screen.dart';
 import 'screens/grn_creation_screen.dart';
@@ -885,6 +888,10 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
   String? _selectedProjectId;
   List<WorkerAttendance> _workers = [];
   bool _isLoading = false;
+  File? _capturedPhoto;
+  String? _uploadedPhotoUrl;
+  bool _isUploadingPhoto = false;
+  final ImagePicker _imagePicker = ImagePicker();
 
   String get _dateKey {
     return '${_selectedDate.year}-${_selectedDate.month.toString().padLeft(2, '0')}-${_selectedDate.day.toString().padLeft(2, '0')}';
@@ -905,13 +912,18 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
   Future<void> _loadAttendanceForDate() async {
     if (_selectedProjectId == null) return;
     
-    setState(() => _isLoading = true);
+    setState(() {
+      _isLoading = true;
+      _capturedPhoto = null;
+      _uploadedPhotoUrl = null;
+    });
     
     try {
       final record = await AttendanceService.getAttendanceRecord(_selectedProjectId!, _dateKey);
       if (record != null) {
         setState(() {
           _workers = record.workers;
+          _uploadedPhotoUrl = record.photoUrl;
         });
       } else {
         _loadDefaultWorkers();
@@ -928,19 +940,163 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
     }
   }
 
+  Future<void> _captureAttendancePhoto() async {
+    try {
+      final XFile? photo = await _imagePicker.pickImage(
+        source: ImageSource.camera,
+        imageQuality: 85,
+        maxWidth: 1920,
+        maxHeight: 1080,
+      );
+      
+      if (photo != null) {
+        setState(() {
+          _capturedPhoto = File(photo.path);
+        });
+        
+        // Show preview dialog
+        _showPhotoPreviewDialog();
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Camera error: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
+  void _showPhotoPreviewDialog() {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        title: const Text('Attendance Photo'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (_capturedPhoto != null)
+              ClipRRect(
+                borderRadius: BorderRadius.circular(12),
+                child: Image.file(
+                  _capturedPhoto!,
+                  height: 300,
+                  width: double.infinity,
+                  fit: BoxFit.cover,
+                ),
+              ),
+            const SizedBox(height: 16),
+            const Text(
+              'Use this photo for attendance?',
+              style: TextStyle(fontSize: 14),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              setState(() {
+                _capturedPhoto = null;
+              });
+              Navigator.pop(context);
+            },
+            child: const Text('Retake'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(context);
+              _uploadAttendancePhoto();
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: ManagerTheme.primary,
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Confirm'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _uploadAttendancePhoto() async {
+    if (_capturedPhoto == null || _selectedProjectId == null) return;
+    
+    setState(() => _isUploadingPhoto = true);
+    
+    try {
+      final currentUserId = FirebaseAuth.instance.currentUser?.uid;
+      if (currentUserId == null) throw Exception('User not authenticated');
+      
+      // Upload to Firebase Storage
+      final storageRef = FirebaseStorage.instance
+          .ref()
+          .child('attendance_photos')
+          .child(_selectedProjectId!)
+          .child(_dateKey)
+          .child('$currentUserId.jpg');
+      
+      final uploadTask = await storageRef.putFile(_capturedPhoto!);
+      final downloadUrl = await uploadTask.ref.getDownloadURL();
+      
+      setState(() {
+        _uploadedPhotoUrl = downloadUrl;
+        _isUploadingPhoto = false;
+      });
+      
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Photo uploaded successfully'),
+          backgroundColor: Colors.green,
+        ),
+      );
+    } catch (e) {
+      setState(() => _isUploadingPhoto = false);
+      
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Upload failed: $e'),
+          backgroundColor: Colors.red,
+          action: SnackBarAction(
+            label: 'Retry',
+            textColor: Colors.white,
+            onPressed: _uploadAttendancePhoto,
+          ),
+        ),
+      );
+    }
+  }
+
   Future<void> _saveAttendance() async {
     if (_selectedProjectId == null) return;
+    
+    // Validate photo is captured
+    if (_uploadedPhotoUrl == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please capture attendance photo before saving'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return;
+    }
     
     setState(() => _isLoading = true);
     
     try {
+      final currentUserId = FirebaseAuth.instance.currentUser?.uid;
+      if (currentUserId == null) throw Exception('User not authenticated');
+      
       final record = AttendanceRecord(
         id: '',
         projectId: _selectedProjectId!,
         date: _dateKey,
         workers: _workers,
-        recordedBy: AttendanceService.currentUserId ?? '',
+        recordedBy: currentUserId,
         createdAt: DateTime.now(),
+        photoUrl: _uploadedPhotoUrl,
+        photoCapturedAt: DateTime.now(),
+        photoBy: currentUserId,
       );
       
       await AttendanceService.saveAttendanceRecord(record);
@@ -1052,6 +1208,17 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
                         },
                       ),
                       const SizedBox(height: 16),
+                      
+                      // Photo Capture Section
+                      if (_selectedProjectId != null) ...[
+                        _PhotoCaptureCard(
+                          capturedPhoto: _capturedPhoto,
+                          uploadedPhotoUrl: _uploadedPhotoUrl,
+                          isUploading: _isUploadingPhoto,
+                          onCapture: _captureAttendancePhoto,
+                        ),
+                        const SizedBox(height: 16),
+                      ],
                       
                       if (_selectedProjectId != null) ...[
                         if (_isLoading)
@@ -1530,6 +1697,158 @@ class _GlassButton extends StatelessWidget {
                 Text(label, style: const TextStyle(fontWeight: FontWeight.w800, color: Color(0xFF1F2937))),
               ],
             ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _PhotoCaptureCard extends StatelessWidget {
+  final File? capturedPhoto;
+  final String? uploadedPhotoUrl;
+  final bool isUploading;
+  final VoidCallback onCapture;
+  
+  const _PhotoCaptureCard({
+    required this.capturedPhoto,
+    required this.uploadedPhotoUrl,
+    required this.isUploading,
+    required this.onCapture,
+  });
+  
+  @override
+  Widget build(BuildContext context) {
+    final bool hasPhoto = capturedPhoto != null || uploadedPhotoUrl != null;
+    
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(18),
+      child: BackdropFilter(
+        filter: ui.ImageFilter.blur(sigmaX: 18, sigmaY: 18),
+        child: Container(
+          decoration: BoxDecoration(
+            color: Colors.white.withValues(alpha: 0.55),
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(
+              color: hasPhoto 
+                  ? Colors.green.withValues(alpha: 0.45)
+                  : Colors.orange.withValues(alpha: 0.45),
+              width: 1.5,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.06),
+                blurRadius: 16,
+                offset: const Offset(0, 8),
+              ),
+              BoxShadow(
+                color: hasPhoto 
+                    ? Colors.green.withValues(alpha: 0.16)
+                    : Colors.orange.withValues(alpha: 0.16),
+                blurRadius: 22,
+                spreadRadius: 1,
+              ),
+            ],
+          ),
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    height: 40,
+                    width: 40,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      gradient: LinearGradient(
+                        colors: hasPhoto 
+                            ? [Colors.green, Colors.green.shade700]
+                            : [Colors.orange, Colors.orange.shade700],
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: (hasPhoto ? Colors.green : Colors.orange).withValues(alpha: 0.28),
+                          blurRadius: 18,
+                          spreadRadius: 1,
+                        ),
+                      ],
+                    ),
+                    child: Icon(
+                      hasPhoto ? Icons.check_circle : Icons.camera_alt,
+                      color: Colors.white,
+                      size: 22,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          hasPhoto ? 'Photo Captured' : 'Capture Attendance Photo',
+                          style: const TextStyle(
+                            fontWeight: FontWeight.w800,
+                            color: Color(0xFF1F2937),
+                            fontSize: 16,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          hasPhoto 
+                              ? 'Photo ready for attendance'
+                              : 'Required before saving',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: hasPhoto ? Colors.green : Colors.orange,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              
+              if (hasPhoto && capturedPhoto != null) ...[
+                const SizedBox(height: 12),
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(12),
+                  child: Image.file(
+                    capturedPhoto!,
+                    height: 150,
+                    width: double.infinity,
+                    fit: BoxFit.cover,
+                  ),
+                ),
+              ],
+              
+              const SizedBox(height: 12),
+              
+              if (isUploading)
+                const Center(
+                  child: Padding(
+                    padding: EdgeInsets.all(8.0),
+                    child: CircularProgressIndicator(
+                      valueColor: AlwaysStoppedAnimation<Color>(ManagerTheme.primary),
+                    ),
+                  ),
+                )
+              else
+                ElevatedButton.icon(
+                  onPressed: onCapture,
+                  icon: Icon(hasPhoto ? Icons.refresh : Icons.camera_alt),
+                  label: Text(hasPhoto ? 'Retake Photo' : 'Capture Photo'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: hasPhoto ? ManagerTheme.accent : ManagerTheme.primary,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                ),
+            ],
           ),
         ),
       ),

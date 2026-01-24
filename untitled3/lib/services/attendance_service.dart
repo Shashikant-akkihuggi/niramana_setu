@@ -73,6 +73,9 @@ class AttendanceRecord {
   final String recordedBy; // Manager UID
   final DateTime createdAt;
   final DateTime? updatedAt;
+  final String? photoUrl; // Attendance photo URL
+  final DateTime? photoCapturedAt; // When photo was captured
+  final String? photoBy; // Manager UID who captured photo
 
   AttendanceRecord({
     required this.id,
@@ -82,6 +85,9 @@ class AttendanceRecord {
     required this.recordedBy,
     required this.createdAt,
     this.updatedAt,
+    this.photoUrl,
+    this.photoCapturedAt,
+    this.photoBy,
   });
 
   factory AttendanceRecord.fromJson(Map<String, dynamic> json) {
@@ -95,6 +101,9 @@ class AttendanceRecord {
       recordedBy: json['recordedBy'] ?? '',
       createdAt: (json['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
       updatedAt: (json['updatedAt'] as Timestamp?)?.toDate(),
+      photoUrl: json['photoUrl'] as String?,
+      photoCapturedAt: (json['photoCapturedAt'] as Timestamp?)?.toDate(),
+      photoBy: json['photoBy'] as String?,
     );
   }
 
@@ -106,6 +115,9 @@ class AttendanceRecord {
       'recordedBy': recordedBy,
       'createdAt': Timestamp.fromDate(createdAt),
       'updatedAt': updatedAt != null ? Timestamp.fromDate(updatedAt!) : null,
+      'photoUrl': photoUrl,
+      'photoCapturedAt': photoCapturedAt != null ? Timestamp.fromDate(photoCapturedAt!) : null,
+      'photoBy': photoBy,
     };
   }
 
@@ -117,6 +129,9 @@ class AttendanceRecord {
     String? recordedBy,
     DateTime? createdAt,
     DateTime? updatedAt,
+    String? photoUrl,
+    DateTime? photoCapturedAt,
+    String? photoBy,
   }) {
     return AttendanceRecord(
       id: id ?? this.id,
@@ -126,6 +141,9 @@ class AttendanceRecord {
       recordedBy: recordedBy ?? this.recordedBy,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
+      photoUrl: photoUrl ?? this.photoUrl,
+      photoCapturedAt: photoCapturedAt ?? this.photoCapturedAt,
+      photoBy: photoBy ?? this.photoBy,
     );
   }
 }
