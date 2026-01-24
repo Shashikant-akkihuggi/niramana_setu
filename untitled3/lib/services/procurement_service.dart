@@ -28,7 +28,9 @@ class ProcurementService {
     );
 
     final docRef = await _firestore
-        .collection('material_requests')
+        .collection('projects')
+        .doc(mr.projectId)
+        .collection('materialRequests')
         .add(mrWithCreator.toFirestore());
 
     return docRef.id;
@@ -37,8 +39,9 @@ class ProcurementService {
   /// Get Material Requests for Engineer approval
   static Stream<List<MaterialRequestModel>> getEngineerPendingMRs(String projectId) {
     return _firestore
-        .collection('material_requests')
-        .where('projectId', isEqualTo: projectId)
+        .collection('projects')
+        .doc(projectId)
+        .collection('materialRequests')
         .where('status', isEqualTo: 'REQUESTED')
         .orderBy('createdAt', descending: true)
         .snapshots()
@@ -48,10 +51,15 @@ class ProcurementService {
   }
 
   /// Engineer approves Material Request
-  static Future<void> engineerApproveMR(String mrId) async {
+  static Future<void> engineerApproveMR(String projectId, String mrId) async {
     if (currentUserId == null) throw Exception('User not authenticated');
 
-    final mrDoc = await _firestore.collection('material_requests').doc(mrId).get();
+    final mrDoc = await _firestore
+        .collection('projects')
+        .doc(projectId)
+        .collection('materialRequests')
+        .doc(mrId)
+        .get();
     if (!mrDoc.exists) throw Exception('Material Request not found');
 
     final mr = MaterialRequestModel.fromFirestore(mrDoc);
@@ -59,7 +67,12 @@ class ProcurementService {
       throw Exception('Invalid status transition');
     }
 
-    await _firestore.collection('material_requests').doc(mrId).update({
+    await _firestore
+        .collection('projects')
+        .doc(projectId)
+        .collection('materialRequests')
+        .doc(mrId)
+        .update({
       'status': 'ENGINEER_APPROVED',
       'engineerApproved': true,
       'engineerApprovedBy': currentUserId,
@@ -68,10 +81,15 @@ class ProcurementService {
   }
 
   /// Engineer rejects Material Request
-  static Future<void> engineerRejectMR(String mrId, String remarks) async {
+  static Future<void> engineerRejectMR(String projectId, String mrId, String remarks) async {
     if (currentUserId == null) throw Exception('User not authenticated');
 
-    await _firestore.collection('material_requests').doc(mrId).update({
+    await _firestore
+        .collection('projects')
+        .doc(projectId)
+        .collection('materialRequests')
+        .doc(mrId)
+        .update({
       'status': 'REJECTED',
       'engineerApproved': false,
       'engineerRemarks': remarks,
@@ -83,8 +101,9 @@ class ProcurementService {
   /// Get Material Requests for Owner approval
   static Stream<List<MaterialRequestModel>> getOwnerPendingMRs(String projectId) {
     return _firestore
-        .collection('material_requests')
-        .where('projectId', isEqualTo: projectId)
+        .collection('projects')
+        .doc(projectId)
+        .collection('materialRequests')
         .where('status', isEqualTo: 'ENGINEER_APPROVED')
         .orderBy('createdAt', descending: true)
         .snapshots()
@@ -94,10 +113,15 @@ class ProcurementService {
   }
 
   /// Owner approves Material Request (Financial approval)
-  static Future<void> ownerApproveMR(String mrId) async {
+  static Future<void> ownerApproveMR(String projectId, String mrId) async {
     if (currentUserId == null) throw Exception('User not authenticated');
 
-    final mrDoc = await _firestore.collection('material_requests').doc(mrId).get();
+    final mrDoc = await _firestore
+        .collection('projects')
+        .doc(projectId)
+        .collection('materialRequests')
+        .doc(mrId)
+        .get();
     if (!mrDoc.exists) throw Exception('Material Request not found');
 
     final mr = MaterialRequestModel.fromFirestore(mrDoc);
@@ -105,7 +129,12 @@ class ProcurementService {
       throw Exception('Invalid status transition: MR must be engineer-approved first');
     }
 
-    await _firestore.collection('material_requests').doc(mrId).update({
+    await _firestore
+        .collection('projects')
+        .doc(projectId)
+        .collection('materialRequests')
+        .doc(mrId)
+        .update({
       'status': 'OWNER_APPROVED',
       'ownerApproved': true,
       'ownerApprovedBy': currentUserId,
@@ -114,10 +143,15 @@ class ProcurementService {
   }
 
   /// Owner rejects Material Request
-  static Future<void> ownerRejectMR(String mrId, String remarks) async {
+  static Future<void> ownerRejectMR(String projectId, String mrId, String remarks) async {
     if (currentUserId == null) throw Exception('User not authenticated');
 
-    await _firestore.collection('material_requests').doc(mrId).update({
+    await _firestore
+        .collection('projects')
+        .doc(projectId)
+        .collection('materialRequests')
+        .doc(mrId)
+        .update({
       'status': 'REJECTED',
       'ownerApproved': false,
       'ownerRemarks': remarks,
@@ -129,8 +163,9 @@ class ProcurementService {
   /// Get Owner-approved MRs (for Purchase Manager to create PO)
   static Stream<List<MaterialRequestModel>> getOwnerApprovedMRs(String projectId) {
     return _firestore
-        .collection('material_requests')
-        .where('projectId', isEqualTo: projectId)
+        .collection('projects')
+        .doc(projectId)
+        .collection('materialRequests')
         .where('status', isEqualTo: 'OWNER_APPROVED')
         .orderBy('createdAt', descending: true)
         .snapshots()
@@ -146,7 +181,12 @@ class ProcurementService {
     if (currentUserId == null) throw Exception('User not authenticated');
 
     // Validate: MR must be OWNER_APPROVED
-    final mrDoc = await _firestore.collection('material_requests').doc(po.mrId).get();
+    final mrDoc = await _firestore
+        .collection('projects')
+        .doc(po.projectId)
+        .collection('materialRequests')
+        .doc(po.mrId)
+        .get();
     if (!mrDoc.exists) throw Exception('Material Request not found');
 
     final mr = MaterialRequestModel.fromFirestore(mrDoc);
@@ -161,11 +201,18 @@ class ProcurementService {
     );
 
     final docRef = await _firestore
-        .collection('purchase_orders')
+        .collection('projects')
+        .doc(po.projectId)
+        .collection('purchaseOrders')
         .add(poWithCreator.toFirestore());
 
     // Update MR status
-    await _firestore.collection('material_requests').doc(po.mrId).update({
+    await _firestore
+        .collection('projects')
+        .doc(po.projectId)
+        .collection('materialRequests')
+        .doc(po.mrId)
+        .update({
       'status': 'PO_CREATED',
     });
 
@@ -175,8 +222,9 @@ class ProcurementService {
   /// Get Purchase Orders for a project
   static Stream<List<PurchaseOrderModel>> getProjectPOs(String projectId) {
     return _firestore
-        .collection('purchase_orders')
-        .where('projectId', isEqualTo: projectId)
+        .collection('projects')
+        .doc(projectId)
+        .collection('purchaseOrders')
         .orderBy('createdAt', descending: true)
         .snapshots()
         .map((snapshot) => snapshot.docs
@@ -187,8 +235,9 @@ class ProcurementService {
   /// Get POs pending GRN (for Field Manager)
   static Stream<List<PurchaseOrderModel>> getPOsPendingGRN(String projectId) {
     return _firestore
-        .collection('purchase_orders')
-        .where('projectId', isEqualTo: projectId)
+        .collection('projects')
+        .doc(projectId)
+        .collection('purchaseOrders')
         .where('status', isEqualTo: 'PO_CREATED')
         .orderBy('createdAt', descending: true)
         .snapshots()
@@ -198,8 +247,13 @@ class ProcurementService {
   }
 
   /// Get single PO by ID
-  static Future<PurchaseOrderModel?> getPOById(String poId) async {
-    final doc = await _firestore.collection('purchase_orders').doc(poId).get();
+  static Future<PurchaseOrderModel?> getPOById(String projectId, String poId) async {
+    final doc = await _firestore
+        .collection('projects')
+        .doc(projectId)
+        .collection('purchaseOrders')
+        .doc(poId)
+        .get();
     if (!doc.exists) return null;
     return PurchaseOrderModel.fromFirestore(doc);
   }
@@ -211,7 +265,12 @@ class ProcurementService {
     if (currentUserId == null) throw Exception('User not authenticated');
 
     // Validate: PO must exist and be in PO_CREATED status
-    final poDoc = await _firestore.collection('purchase_orders').doc(grn.poId).get();
+    final poDoc = await _firestore
+        .collection('projects')
+        .doc(grn.projectId)
+        .collection('purchaseOrders')
+        .doc(grn.poId)
+        .get();
     if (!poDoc.exists) throw Exception('Purchase Order not found');
 
     final po = PurchaseOrderModel.fromFirestore(poDoc);
@@ -226,11 +285,18 @@ class ProcurementService {
     );
 
     final docRef = await _firestore
+        .collection('projects')
+        .doc(grn.projectId)
         .collection('grn')
         .add(grnWithVerifier.toFirestore());
 
     // Update PO status
-    await _firestore.collection('purchase_orders').doc(grn.poId).update({
+    await _firestore
+        .collection('projects')
+        .doc(grn.projectId)
+        .collection('purchaseOrders')
+        .doc(grn.poId)
+        .update({
       'status': 'GRN_CONFIRMED',
     });
 
@@ -240,8 +306,9 @@ class ProcurementService {
   /// Get GRNs for a project
   static Stream<List<GRNModel>> getProjectGRNs(String projectId) {
     return _firestore
+        .collection('projects')
+        .doc(projectId)
         .collection('grn')
-        .where('projectId', isEqualTo: projectId)
         .orderBy('verifiedAt', descending: true)
         .snapshots()
         .map((snapshot) => snapshot.docs
@@ -250,8 +317,10 @@ class ProcurementService {
   }
 
   /// Get GRN by PO ID
-  static Future<GRNModel?> getGRNByPOId(String poId) async {
+  static Future<GRNModel?> getGRNByPOId(String projectId, String poId) async {
     final snapshot = await _firestore
+        .collection('projects')
+        .doc(projectId)
         .collection('grn')
         .where('poId', isEqualTo: poId)
         .limit(1)
@@ -262,8 +331,13 @@ class ProcurementService {
   }
 
   /// Get single GRN by ID
-  static Future<GRNModel?> getGRNById(String grnId) async {
-    final doc = await _firestore.collection('grn').doc(grnId).get();
+  static Future<GRNModel?> getGRNById(String projectId, String grnId) async {
+    final doc = await _firestore
+        .collection('projects')
+        .doc(projectId)
+        .collection('grn')
+        .doc(grnId)
+        .get();
     if (!doc.exists) return null;
     return GRNModel.fromFirestore(doc);
   }
@@ -271,14 +345,19 @@ class ProcurementService {
   // ==================== WORKFLOW VALIDATION ====================
 
   /// Validate if bill can be created (requires GRN)
-  static Future<bool> canCreateBill(String poId) async {
-    final grn = await getGRNByPOId(poId);
+  static Future<bool> canCreateBill(String projectId, String poId) async {
+    final grn = await getGRNByPOId(projectId, poId);
     return grn != null && grn.status == 'GRN_CONFIRMED';
   }
 
   /// Get complete procurement chain for a project
-  static Future<Map<String, dynamic>> getProcurementChain(String mrId) async {
-    final mrDoc = await _firestore.collection('material_requests').doc(mrId).get();
+  static Future<Map<String, dynamic>> getProcurementChain(String projectId, String mrId) async {
+    final mrDoc = await _firestore
+        .collection('projects')
+        .doc(projectId)
+        .collection('materialRequests')
+        .doc(mrId)
+        .get();
     if (!mrDoc.exists) return {};
 
     final mr = MaterialRequestModel.fromFirestore(mrDoc);
@@ -286,7 +365,9 @@ class ProcurementService {
 
     // Get PO if exists
     final poSnapshot = await _firestore
-        .collection('purchase_orders')
+        .collection('projects')
+        .doc(projectId)
+        .collection('purchaseOrders')
         .where('mrId', isEqualTo: mrId)
         .limit(1)
         .get();
@@ -296,9 +377,22 @@ class ProcurementService {
       result['po'] = po;
 
       // Get GRN if exists
-      final grn = await getGRNByPOId(po.id);
+      final grn = await getGRNByPOId(projectId, po.id);
       if (grn != null) {
         result['grn'] = grn;
+
+        // Get Bill if exists
+        final billSnapshot = await _firestore
+            .collection('projects')
+            .doc(projectId)
+            .collection('gst_bills')
+            .where('poId', isEqualTo: po.id)
+            .limit(1)
+            .get();
+
+        if (billSnapshot.docs.isNotEmpty) {
+          result['bill'] = GSTBillModel.fromFirestore(billSnapshot.docs.first);
+        }
       }
     }
 
@@ -343,6 +437,29 @@ class ProcurementService {
             .toList());
   }
 
+  /// Get pending bills for a project
+  static Stream<List<GSTBillModel>> getPendingBills(String projectId) {
+    return _firestore
+        .collection('gst_bills')
+        .where('projectId', isEqualTo: projectId)
+        .where('approvalStatus', isEqualTo: 'pending')
+        .orderBy('createdAt', descending: true)
+        .snapshots()
+        .map((snapshot) => snapshot.docs
+            .map((doc) => GSTBillModel.fromFirestore(doc))
+            .toList());
+  }
+
+  /// Get pending bills count
+  static Stream<int> getPendingBillsCount(String projectId) {
+    return _firestore
+        .collection('gst_bills')
+        .where('projectId', isEqualTo: projectId)
+        .where('approvalStatus', isEqualTo: 'pending')
+        .snapshots()
+        .map((snapshot) => snapshot.docs.length);
+  }
+
   /// Owner/Engineer approves GST Bill
   static Future<void> approveBill(String billId) async {
     if (currentUserId == null) throw Exception('User not authenticated');
@@ -364,5 +481,30 @@ class ProcurementService {
         'status': 'BILL_APPROVED',
       });
     }
+  }
+
+  /// Owner/Engineer rejects GST Bill
+  static Future<void> rejectBill(String billId, String remarks) async {
+    if (currentUserId == null) throw Exception('User not authenticated');
+
+    await _firestore.collection('gst_bills').doc(billId).update({
+      'approvalStatus': 'rejected',
+      'rejectionRemarks': remarks,
+      'rejectedBy': currentUserId,
+      'rejectedAt': Timestamp.now(),
+    });
+  }
+
+  /// Get Material Request History (all MRs for a project)
+  static Stream<List<MaterialRequestModel>> getProjectMRHistory(String projectId) {
+    return _firestore
+        .collection('projects')
+        .doc(projectId)
+        .collection('materialRequests')
+        .orderBy('createdAt', descending: true)
+        .snapshots()
+        .map((snapshot) => snapshot.docs
+            .map((doc) => MaterialRequestModel.fromFirestore(doc))
+            .toList());
   }
 }

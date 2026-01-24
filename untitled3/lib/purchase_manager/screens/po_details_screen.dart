@@ -97,7 +97,7 @@ class PODetailsScreen extends StatelessWidget {
 
   Widget _buildGRNSection(BuildContext context) {
     return FutureBuilder<GRNModel?>(
-      future: ProcurementService.getGRNByPOId(po.id),
+      future: ProcurementService.getGRNByPOId(po.projectId, po.id),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(child: CircularProgressIndicator());

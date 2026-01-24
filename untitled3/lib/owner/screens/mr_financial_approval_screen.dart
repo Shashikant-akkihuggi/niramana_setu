@@ -4,8 +4,8 @@ import '../../services/procurement_service.dart';
 import '../../common/project_context.dart';
 import 'package:intl/intl.dart';
 
-class EngineerMRApprovalScreen extends StatelessWidget {
-  const EngineerMRApprovalScreen({super.key});
+class OwnerMRFinancialApprovalScreen extends StatelessWidget {
+  const OwnerMRFinancialApprovalScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -13,19 +13,19 @@ class EngineerMRApprovalScreen extends StatelessWidget {
 
     if (projectId == null) {
       return Scaffold(
-        appBar: AppBar(title: const Text('MR Approvals')),
+        appBar: AppBar(title: const Text('MR Financial Approvals')),
         body: const Center(child: Text('Please select a project first')),
       );
     }
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Material Request Approvals'),
+        title: const Text('MR Financial Approvals'),
         backgroundColor: const Color(0xFF136DEC),
         foregroundColor: Colors.white,
       ),
       body: StreamBuilder<List<MaterialRequestModel>>(
-        stream: ProcurementService.getEngineerPendingMRs(projectId),
+        stream: ProcurementService.getOwnerPendingMRs(projectId),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());
@@ -35,7 +35,7 @@ class EngineerMRApprovalScreen extends StatelessWidget {
           }
           final mrs = snapshot.data ?? [];
           if (mrs.isEmpty) {
-            return const Center(child: Text('No pending material requests'));
+            return const Center(child: Text('No material requests pending financial approval'));
           }
 
           return ListView.builder(
@@ -43,7 +43,7 @@ class EngineerMRApprovalScreen extends StatelessWidget {
             itemCount: mrs.length,
             itemBuilder: (context, index) {
               final mr = mrs[index];
-              return _MRCard(mr: mr);
+              return _MRFinancialCard(mr: mr);
             },
           );
         },
@@ -52,9 +52,9 @@ class EngineerMRApprovalScreen extends StatelessWidget {
   }
 }
 
-class _MRCard extends StatelessWidget {
+class _MRFinancialCard extends StatelessWidget {
   final MaterialRequestModel mr;
-  const _MRCard({required this.mr});
+  const _MRFinancialCard({required this.mr});
 
   @override
   Widget build(BuildContext context) {
@@ -77,9 +77,13 @@ class _MRCard extends StatelessWidget {
                   padding: const EdgeInsets.only(bottom: 4),
                   child: Text('• ${item.name}: ${item.quantity} ${item.unit}'),
                 )),
+                const SizedBox(height: 12),
+                const Text('Engineer Review:', style: TextStyle(fontWeight: FontWeight.bold)),
+                Text('Approved By: ${mr.engineerApprovedBy?.substring(0, 8) ?? "N/A"}'),
+                if (mr.engineerRemarks != null) Text('Remarks: ${mr.engineerRemarks}'),
                 if (mr.notes != null && mr.notes!.isNotEmpty) ...[
                   const SizedBox(height: 12),
-                  const Text('Notes:', style: TextStyle(fontWeight: FontWeight.bold)),
+                  const Text('Field Notes:', style: TextStyle(fontWeight: FontWeight.bold)),
                   Text(mr.notes!),
                 ],
                 const SizedBox(height: 20),
@@ -115,10 +119,10 @@ class _MRCard extends StatelessWidget {
 
   Future<void> _approveMR(BuildContext context) async {
     try {
-      await ProcurementService.engineerApproveMR(mr.projectId, mr.id);
+      await ProcurementService.ownerApproveMR(mr.projectId, mr.id);
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Material Request approved')),
+          const SnackBar(content: Text('Financial approval granted')),
         );
       }
     } catch (e) {
@@ -135,7 +139,7 @@ class _MRCard extends StatelessWidget {
     return showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Reject Material Request'),
+        title: const Text('Reject Financial Approval'),
         content: TextField(
           controller: controller,
           decoration: const InputDecoration(
@@ -158,7 +162,7 @@ class _MRCard extends StatelessWidget {
                 return;
               }
               try {
-                await ProcurementService.engineerRejectMR(mr.projectId, mr.id, controller.text.trim());
+                await ProcurementService.ownerRejectMR(mr.projectId, mr.id, controller.text.trim());
                 if (context.mounted) {
                   Navigator.pop(context);
                   ScaffoldMessenger.of(context).showSnackBar(

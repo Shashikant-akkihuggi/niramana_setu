@@ -11,6 +11,7 @@ import 'engineer_project_card.dart';
 import 'create_project_screen.dart';
 import 'project_reassignment_screen.dart';
 import 'engineer_tasks_screen.dart';
+import 'screens/mr_approval_screen.dart';
 import 'billing/engineer_billing_screen.dart';
 import '../common/screens/milestone_hub_screen.dart';
 import '../common/services/logout_service.dart';
@@ -22,6 +23,7 @@ import '../services/material_request_service.dart';
 import '../services/notification_service.dart';
 import '../services/gst_bill_service.dart';
 import '../services/social_service.dart';
+import '../services/procurement_service.dart';
 import '../common/models/project_model.dart';
 import '../common/notifications.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -534,7 +536,7 @@ class EngineerHomeScreen extends StatelessWidget {
                         Navigator.push(
                           context,
                           MaterialPageRoute(
-                            builder: (_) => const MaterialApprovalScreen(),
+                            builder: (_) => const EngineerMRApprovalScreen(),
                           ),
                         );
                       },
@@ -592,7 +594,7 @@ class EngineerHomeScreen extends StatelessWidget {
                   },
                 ),
                 StreamBuilder<int>(
-                  stream: GSTBillService.getPendingBillsCount(ProjectContext.activeProjectId!),
+                  stream: ProcurementService.getPendingBillsCount(ProjectContext.activeProjectId!),
                   builder: (context, snapshot) {
                     return _ActionCard(
                       title: 'Billing & Invoices',

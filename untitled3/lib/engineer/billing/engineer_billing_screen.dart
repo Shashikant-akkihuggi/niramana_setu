@@ -2,10 +2,10 @@ import 'package:flutter/material.dart';
 import 'dart:ui' as ui;
 import 'package:firebase_auth/firebase_auth.dart';
 import '../../models/gst_bill_model.dart';
-import '../../services/gst_bill_service.dart';
+import '../../services/procurement_service.dart';
 import '../../common/project_context.dart';
 import '../engineer_dashboard.dart';
-import 'bill_review_detail_screen.dart';
+import '../../common/screens/bill_approval_screen.dart';
 
 /// Engineer Billing & Invoices Screen
 /// Shows pending bills for review and approval
@@ -73,7 +73,7 @@ class EngineerBillingScreen extends StatelessWidget {
               ),
               Expanded(
                 child: StreamBuilder<List<GSTBillModel>>(
-                  stream: GSTBillService.getPendingBillsForEngineer(ProjectContext.activeProjectId!),
+                  stream: ProcurementService.getPendingBills(ProjectContext.activeProjectId!),
                   builder: (context, snapshot) {
                     if (snapshot.connectionState == ConnectionState.waiting) {
                       return const Center(child: CircularProgressIndicator());
@@ -122,8 +122,7 @@ class EngineerBillingScreen extends StatelessWidget {
                             Navigator.push(
                               context,
                               MaterialPageRoute(
-                                builder: (_) => BillReviewDetailScreen(
-                                  projectId: ProjectContext.activeProjectId!,
+                                builder: (_) => BillApprovalScreen(
                                   bill: bill,
                                 ),
                               ),

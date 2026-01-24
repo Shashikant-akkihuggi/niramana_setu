@@ -22,26 +22,17 @@ class _PurchaseManagerDashboardState extends State<PurchaseManagerDashboard> {
   Widget _buildStatsSummary(String? uid) {
     if (uid == null) return const SizedBox.shrink();
 
-    return StreamBuilder<QuerySnapshot>(
-      stream: FirebaseFirestore.instance
-          .collection('purchase_orders')
-          .where('createdBy', isEqualTo: uid)
-          .snapshots(),
-      builder: (context, snapshot) {
-        final pos = snapshot.data?.docs ?? [];
-        final totalPOAmount = pos.fold(0.0, (total, doc) => total + (doc['totalAmount'] ?? 0.0));
-        
-        return Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-          child: Row(
-            children: [
-              _buildStatCard("Total POs", pos.length.toString(), Icons.shopping_cart, Colors.blue),
-              const SizedBox(width: 12),
-              _buildStatCard("Total Value", "₹${(totalPOAmount / 1000).toStringAsFixed(1)}K", Icons.payments, Colors.green),
-            ],
-          ),
-        );
-      },
+    // Note: Stats should be calculated from assigned projects, not top-level collection
+    // This is a placeholder - proper implementation would aggregate from all assigned projects
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      child: Row(
+        children: [
+          _buildStatCard("Assigned Projects", "0", Icons.folder, Colors.blue),
+          const SizedBox(width: 12),
+          _buildStatCard("Pending MRs", "0", Icons.pending_actions, Colors.orange),
+        ],
+      ),
     );
   }
 
@@ -232,11 +223,12 @@ class _ProjectProcurementCard extends StatelessWidget {
               style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Colors.grey)),
             const SizedBox(height: 8),
             
-            // This would normally be another stream or a count
+            // Pending Material Requests for this project
             StreamBuilder<QuerySnapshot>(
               stream: FirebaseFirestore.instance
-                  .collection('material_requests')
-                  .where('projectId', isEqualTo: project.id)
+                  .collection('projects')
+                  .doc(project.id)
+                  .collection('materialRequests')
                   .where('status', isEqualTo: 'OWNER_APPROVED')
                   .snapshots(),
               builder: (context, snapshot) {

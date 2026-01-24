@@ -2,10 +2,11 @@ import 'package:flutter/material.dart';
 import 'dart:ui' as ui;
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:pdf/pdf.dart';
-import '../models/gst_bill_model.dart';
-import '../services/gst_bill_service.dart';
-import '../services/pdf_service.dart';
 import 'package:printing/printing.dart';
+import '../models/gst_bill_model.dart';
+import '../services/procurement_service.dart';
+import '../services/pdf_service.dart';
+import '../common/screens/bill_approval_screen.dart';
 
 class _ThemeINV {
   static const Color primary = Color(0xFF136DEC);
@@ -59,10 +60,39 @@ class OwnerInvoicesScreen extends StatelessWidget {
         .map((s) => s.docs.map(InvoiceModel.fromFirestore).toList());
   }
 
+  Widget _buildEmptyState(String title, String subtitle) {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          const Icon(
+            Icons.receipt_long,
+            size: 64,
+            color: Color(0xFF9CA3AF),
+          ),
+          const SizedBox(height: 16),
+          Text(
+            title,
+            style: const TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.w600,
+              color: Color(0xFF1F2937),
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            subtitle,
+            style: const TextStyle(color: Color(0xFF6B7280)),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return DefaultTabController(
-      length: 2,
+      length: 3,
       child: Stack(
         children: [
           _Background(),
@@ -88,50 +118,63 @@ class OwnerInvoicesScreen extends StatelessWidget {
                 ),
                 const TabBar(
                   tabs: [
+                    Tab(text: 'Pending Review'),
                     Tab(text: 'GST Bills'),
                     Tab(text: 'Legacy Invoices'),
                   ],
                   labelColor: Color(0xFF136DEC),
                   unselectedLabelColor: Color(0xFF6B7280),
+                  isScrollable: true,
                 ),
                 Expanded(
                   child: TabBarView(
                     children: [
-                      // GST Bills Tab
+                      // Pending Review Tab
                       StreamBuilder<List<GSTBillModel>>(
-                        stream: GSTBillService.getApprovedBills(projectId),
+                        stream: ProcurementService.getPendingBills(projectId),
                         builder: (context, snapshot) {
                           final bills = snapshot.data ?? [];
                           if (snapshot.connectionState == ConnectionState.waiting) {
                             return const Center(child: CircularProgressIndicator());
                           }
                           if (bills.isEmpty) {
-                            return Center(
-                              child: Column(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  const Icon(
-                                    Icons.receipt_long,
-                                    size: 64,
-                                    color: Color(0xFF9CA3AF),
-                                  ),
-                                  const SizedBox(height: 16),
-                                  const Text(
-                                    'No Approved Bills',
-                                    style: TextStyle(
-                                      fontSize: 18,
-                                      fontWeight: FontWeight.w600,
-                                      color: Color(0xFF1F2937),
+                            return _buildEmptyState("No Bills Pending Review", "All bills have been processed");
+                          }
+                          return ListView.separated(
+                            padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+                            itemCount: bills.length,
+                            separatorBuilder: (_, _) => const SizedBox(height: 12),
+                            itemBuilder: (context, i) {
+                              final bill = bills[i];
+                              return _GSTBillCard(
+                                bill: bill,
+                                onTap: () {
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (_) => BillApprovalScreen(
+                                        bill: bill,
+                                      ),
                                     ),
-                                  ),
-                                  const SizedBox(height: 8),
-                                  const Text(
-                                    'Approved bills will appear here',
-                                    style: TextStyle(color: Color(0xFF6B7280)),
-                                  ),
-                                ],
-                              ),
-                            );
+                                  );
+                                },
+                              );
+                            },
+                          );
+                        },
+                      ),
+                      // GST Bills Tab (Approved)
+                      StreamBuilder<List<GSTBillModel>>(
+                        stream: ProcurementService.getProjectBills(projectId), // This returns all, but we can filter or use another method
+                        builder: (context, snapshot) {
+                          final allBills = snapshot.data ?? [];
+                          final bills = allBills.where((b) => b.approvalStatus == 'approved').toList();
+                          
+                          if (snapshot.connectionState == ConnectionState.waiting) {
+                            return const Center(child: CircularProgressIndicator());
+                          }
+                          if (bills.isEmpty) {
+                            return _buildEmptyState("No Approved Bills", "Approved bills will appear here");
                           }
                           return ListView.separated(
                             padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),

@@ -18,6 +18,9 @@ import '../services/project_service.dart';
 import '../services/real_time_project_service.dart';
 import '../services/notification_service.dart';
 import '../services/material_request_service.dart';
+import '../services/procurement_service.dart';
+import '../models/material_request_model.dart' as new_model;
+import '../common/widgets/procurement_chain_widget.dart';
 import '../services/social_service.dart';
 import '../common/models/project_model.dart';
 import '../common/notifications.dart';
@@ -1473,7 +1476,7 @@ class OwnerProjectsScreen extends StatelessWidget {
 }
 
 
-/// Owner Materials Screen - Read-only view of material requests
+/// Owner Materials Screen - Integrated with procurement workflow
 class OwnerMaterialsScreen extends StatelessWidget {
   final String projectId;
   
@@ -1482,228 +1485,331 @@ class OwnerMaterialsScreen extends StatelessWidget {
   static const Color primary = Color(0xFF136DEC);
   static const Color accent = Color(0xFF7A5AF8);
 
+  @override
+  Widget build(BuildContext context) {
+    return DefaultTabController(
+      length: 2,
+      child: Scaffold(
+        appBar: AppBar(
+          title: const Text('Materials'),
+          backgroundColor: Colors.transparent,
+          elevation: 0,
+          bottom: const TabBar(
+            tabs: [
+              Tab(text: 'Pending Approval'),
+              Tab(text: 'All Requests'),
+            ],
+            indicatorColor: primary,
+            labelColor: primary,
+            unselectedLabelColor: Colors.grey,
+          ),
+        ),
+        extendBodyBehindAppBar: false,
+        body: Stack(
+          children: [
+            // Background gradient
+            Container(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [
+                    primary.withValues(alpha: 0.12),
+                    accent.withValues(alpha: 0.10),
+                    Colors.white,
+                  ],
+                  stops: const [0.0, 0.45, 1.0],
+                ),
+              ),
+            ),
+            TabBarView(
+              children: [
+                _buildMRList(context, ProcurementService.getOwnerPendingMRs(projectId), true),
+                _buildMRList(context, ProcurementService.getProjectMRHistory(projectId), false),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildMRList(BuildContext context, Stream<List<new_model.MaterialRequestModel>> stream, bool isPending) {
+    return StreamBuilder<List<new_model.MaterialRequestModel>>(
+      stream: stream,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        
+        if (snapshot.hasError) {
+          return Center(child: Text('Error: ${snapshot.error}'));
+        }
+        
+        final mrs = snapshot.data ?? [];
+        
+        if (mrs.isEmpty) {
+          return Center(
+            child: Text(
+              isPending ? 'No pending approvals' : 'No material requests found',
+              style: const TextStyle(fontSize: 16, color: Color(0xFF6B7280)),
+            ),
+          );
+        }
+        
+        return ListView.builder(
+          padding: const EdgeInsets.all(16),
+          itemCount: mrs.length,
+          itemBuilder: (context, index) {
+            final mr = mrs[index];
+            return _EnhancedMRCard(mr: mr, isPending: isPending);
+          },
+        );
+      },
+    );
+  }
+}
+
+class _EnhancedMRCard extends StatelessWidget {
+  final new_model.MaterialRequestModel mr;
+  final bool isPending;
+  
+  const _EnhancedMRCard({required this.mr, required this.isPending});
+
+  static const Color primary = Color(0xFF136DEC);
+  static const Color accent = Color(0xFF7A5AF8);
+
   Color _statusColor(String s) {
-    final status = s.toLowerCase();
+    final status = s.toUpperCase();
     switch (status) {
-      case 'approved':
+      case 'OWNER_APPROVED':
+      case 'PO_CREATED':
+      case 'GRN_CONFIRMED':
+      case 'BILL_GENERATED':
+      case 'BILL_APPROVED':
         return const Color(0xFF16A34A);
-      case 'rejected':
+      case 'REJECTED':
         return const Color(0xFFDC2626);
-      default:
+      case 'ENGINEER_APPROVED':
         return const Color(0xFFF59E0B);
+      default:
+        return const Color(0xFF6B7280);
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Materials'),
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-      ),
-      extendBodyBehindAppBar: true,
-      body: Stack(
-        children: [
-          // Background gradient
-          Container(
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [
-                  primary.withValues(alpha: 0.12),
-                  accent.withValues(alpha: 0.10),
-                  Colors.white,
-                ],
-                stops: const [0.0, 0.45, 1.0],
-              ),
-            ),
+    final c = _statusColor(mr.status);
+    final dateFormat = ui.TextDirection.ltr == Directionality.of(context) ? 'dd MMM yyyy' : 'yyyy/MM/dd';
+    final neededDate = (mr.neededBy).toString().split(' ')[0]; // Simple format for now
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.7),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.5)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
           ),
-          SafeArea(
-            child: StreamBuilder<List<MaterialRequestModel>>(
-              stream: MaterialRequestService.getOwnerMaterialRequests(projectId),
-              builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Center(child: CircularProgressIndicator());
-                }
-                
-                if (snapshot.hasError) {
-                  return Center(
-                    child: Text('Error: ${snapshot.error}'),
-                  );
-                }
-                
-                final materials = snapshot.data ?? [];
-                
-                if (materials.isEmpty) {
-                  return const Center(
-                    child: Text(
-                      'No material requests yet',
-                      style: TextStyle(
-                        fontSize: 16,
-                        color: Color(0xFF6B7280),
+        ],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(18),
+        child: BackdropFilter(
+          filter: ui.ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+          child: ExpansionTile(
+            tilePadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            leading: Container(
+              height: 40,
+              width: 40,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: const LinearGradient(colors: [primary, accent]),
+              ),
+              child: const Icon(Icons.inventory_2_rounded, color: Colors.white, size: 20),
+            ),
+            title: Text(
+              'Request ${mr.id.substring(0, 8)}',
+              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+            ),
+            subtitle: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const SizedBox(height: 4),
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: c.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(4),
+                        border: Border.all(color: c.withValues(alpha: 0.2)),
+                      ),
+                      child: Text(
+                        mr.status.replaceAll('_', ' '),
+                        style: TextStyle(color: c, fontSize: 10, fontWeight: FontWeight.bold),
                       ),
                     ),
+                    const SizedBox(width: 8),
+                    Text(
+                      'Priority: ${mr.priority}',
+                      style: TextStyle(color: Colors.grey[700], fontSize: 11),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+            children: [
+              Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Divider(),
+                    const Text('Materials:', style: TextStyle(fontWeight: FontWeight.bold)),
+                    const SizedBox(height: 8),
+                    ...mr.materials.map((item) => Padding(
+                      padding: const EdgeInsets.only(bottom: 4),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.circle, size: 6, color: primary),
+                          const SizedBox(width: 8),
+                          Expanded(child: Text('${item.name}: ${item.quantity} ${item.unit}')),
+                        ],
+                      ),
+                    )),
+                    const SizedBox(height: 12),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text('Needed By:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                            Text(neededDate, style: const TextStyle(fontSize: 13)),
+                          ],
+                        ),
+                        if (mr.engineerApprovedBy != null)
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.end,
+                            children: [
+                              const Text('Engineer Appr:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                              Text(mr.engineerApprovedBy!.substring(0, 8), style: const TextStyle(fontSize: 13)),
+                            ],
+                          ),
+                      ],
+                    ),
+                    if (mr.engineerRemarks != null) ...[
+                      const SizedBox(height: 12),
+                      const Text('Engineer Remarks:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                      Text(mr.engineerRemarks!, style: const TextStyle(fontSize: 13)),
+                    ],
+                    if (mr.notes != null && mr.notes!.isNotEmpty) ...[
+                      const SizedBox(height: 12),
+                      const Text('Field Notes:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                      Text(mr.notes!, style: const TextStyle(fontSize: 13)),
+                    ],
+                    if (isPending && mr.status == 'ENGINEER_APPROVED') ...[
+                      const SizedBox(height: 20),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: OutlinedButton(
+                              onPressed: () => _showRejectDialog(context),
+                              style: OutlinedButton.styleFrom(foregroundColor: Colors.red),
+                              child: const Text('REJECT'),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: ElevatedButton(
+                              onPressed: () => _approveMR(context),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Colors.green,
+                                foregroundColor: Colors.white,
+                              ),
+                              child: const Text('APPROVE'),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _approveMR(BuildContext context) async {
+    try {
+      await ProcurementService.ownerApproveMR(mr.projectId, mr.id);
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Financial approval granted')),
+        );
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
+        );
+      }
+    }
+  }
+
+  Future<void> _showRejectDialog(BuildContext context) async {
+    final controller = TextEditingController();
+    return showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Reject Financial Approval'),
+        content: TextField(
+          controller: controller,
+          decoration: const InputDecoration(
+            labelText: 'Remarks/Reason',
+            hintText: 'Enter reason for rejection',
+          ),
+          maxLines: 3,
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('CANCEL'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              if (controller.text.trim().isEmpty) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Please enter remarks')),
+                );
+                return;
+              }
+              try {
+                await ProcurementService.ownerRejectMR(mr.projectId, mr.id, controller.text.trim());
+                if (context.mounted) {
+                  Navigator.pop(context);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Material Request rejected')),
                   );
                 }
-                
-                return ListView.separated(
-                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
-                  itemCount: materials.length,
-                  separatorBuilder: (_, __) => const SizedBox(height: 12),
-                  itemBuilder: (context, i) {
-                    final mat = materials[i];
-                    final c = _statusColor(mat.status);
-                    return ClipRRect(
-                      borderRadius: BorderRadius.circular(18),
-                      child: BackdropFilter(
-                        filter: ui.ImageFilter.blur(sigmaX: 16, sigmaY: 16),
-                        child: Container(
-                          decoration: BoxDecoration(
-                            color: Colors.white.withValues(alpha: 0.55),
-                            borderRadius: BorderRadius.circular(18),
-                            border: Border.all(color: Colors.white.withValues(alpha: 0.45)),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.black.withValues(alpha: 0.06),
-                                blurRadius: 16,
-                                offset: const Offset(0, 8),
-                              ),
-                              BoxShadow(
-                                color: primary.withValues(alpha: 0.12),
-                                blurRadius: 24,
-                                spreadRadius: 1,
-                              ),
-                            ],
-                          ),
-                          padding: const EdgeInsets.all(14),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Row(
-                                children: [
-                                  Container(
-                                    height: 44,
-                                    width: 44,
-                                    decoration: BoxDecoration(
-                                      shape: BoxShape.circle,
-                                      gradient: const LinearGradient(
-                                        colors: [primary, accent],
-                                      ),
-                                    ),
-                                    child: const Icon(
-                                      Icons.inventory_2_rounded,
-                                      color: Colors.white,
-                                    ),
-                                  ),
-                                  const SizedBox(width: 12),
-                                  Expanded(
-                                    child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
-                                      children: [
-                                        Text(
-                                          mat.material,
-                                          style: const TextStyle(
-                                            fontWeight: FontWeight.w800,
-                                            color: Color(0xFF1F2937),
-                                          ),
-                                        ),
-                                        const SizedBox(height: 4),
-                                        Text(
-                                          'Qty: ${mat.quantity}',
-                                          style: const TextStyle(
-                                            color: Color(0xFF4B5563),
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 10,
-                                      vertical: 4,
-                                    ),
-                                    decoration: BoxDecoration(
-                                      color: c.withValues(alpha: 0.12),
-                                      borderRadius: BorderRadius.circular(999),
-                                      border: Border.all(
-                                        color: c.withValues(alpha: 0.35),
-                                      ),
-                                    ),
-                                    child: Text(
-                                      mat.status,
-                                      style: TextStyle(
-                                        color: c,
-                                        fontWeight: FontWeight.w700,
-                                        fontSize: 12,
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              if (mat.note.isNotEmpty) ...[
-                                const SizedBox(height: 10),
-                                const Text(
-                                  'Notes:',
-                                  style: TextStyle(
-                                    fontWeight: FontWeight.w700,
-                                    color: Color(0xFF374151),
-                                    fontSize: 12,
-                                  ),
-                                ),
-                                const SizedBox(height: 4),
-                                Text(
-                                  mat.note,
-                                  style: const TextStyle(
-                                    color: Color(0xFF4B5563),
-                                    fontSize: 13,
-                                  ),
-                                ),
-                              ],
-                              if (mat.comment != null && mat.comment!.isNotEmpty) ...[
-                                const SizedBox(height: 10),
-                                Container(
-                                  padding: const EdgeInsets.all(10),
-                                  decoration: BoxDecoration(
-                                    color: c.withValues(alpha: 0.08),
-                                    borderRadius: BorderRadius.circular(10),
-                                    border: Border.all(
-                                      color: c.withValues(alpha: 0.2),
-                                    ),
-                                  ),
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        'Engineer Remark:',
-                                        style: TextStyle(
-                                          fontWeight: FontWeight.w700,
-                                          color: c,
-                                          fontSize: 12,
-                                        ),
-                                      ),
-                                      const SizedBox(height: 4),
-                                      Text(
-                                        mat.comment!,
-                                        style: const TextStyle(
-                                          color: Color(0xFF1F2937),
-                                          fontSize: 13,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ],
-                            ],
-                          ),
-                        ),
-                      ),
-                    );
-                  },
-                );
-              },
-            ),
+              } catch (e) {
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
+                  );
+                }
+              }
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red, foregroundColor: Colors.white),
+            child: const Text('REJECT'),
           ),
         ],
       ),

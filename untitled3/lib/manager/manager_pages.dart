@@ -19,6 +19,9 @@ import 'manager_project_card.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
+import 'screens/enhanced_mr_screen.dart';
+import 'screens/grn_creation_screen.dart';
+
 // Shared theme colors for Field Manager pages
 class ManagerTheme {
   static const Color primary = Color(0xFF136DEC);
@@ -747,7 +750,18 @@ class MaterialsScreen extends StatelessWidget {
                 onTap: () {
                   Navigator.push(
                     context,
-                    MaterialPageRoute(builder: (_) => const MaterialRequestScreen()),
+                    MaterialPageRoute(builder: (_) => const EnhancedMRScreen()),
+                  );
+                },
+              ),
+              const SizedBox(height: 12),
+              _GlassButton(
+                icon: Icons.local_shipping_rounded,
+                label: 'Confirm Deliveries (GRN)',
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const GRNCreationScreen()),
                   );
                 },
               ),
