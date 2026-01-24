@@ -9,6 +9,7 @@ import '../services/cloudinary_service.dart';
 import '../services/image_compression_service.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../common/project_context.dart';
+import '../services/dpr_service.dart';
 
 class _ThemeFM {
   static const Color primary = Color(0xFF136DEC);
@@ -137,16 +138,11 @@ class _DPRFormScreenState extends State<DPRFormScreen> {
 
   /// Save DPR to Firebase with Cloudinary URLs
   Future<void> _saveToFirebase(List<String> cloudinaryUrls) async {
-    final currentUser = FirebaseAuth.instance.currentUser;
     final projectId = ProjectContext.activeProjectId;
     
     // Validate project context
     if (projectId == null) {
       throw Exception('No active project selected. Please select a project first.');
-    }
-    
-    if (currentUser == null) {
-      throw Exception('User not authenticated');
     }
 
     debugPrint('DPR Submit: Saving DPR with ${cloudinaryUrls.length} images to project: $projectId');
@@ -155,28 +151,20 @@ class _DPRFormScreenState extends State<DPRFormScreen> {
     int workersCount = 0;
     try {
       final workersText = _workersPresentController.text.trim();
-      // Try to parse as number, if it fails, count comma-separated names
       workersCount = int.tryParse(workersText) ?? workersText.split(',').length;
     } catch (e) {
       workersCount = 0;
     }
 
-    // Save one DPR document with all images
+    // Save ONE DPR document with ALL images using DPRService
     try {
-      await FirebaseFirestore.instance
-          .collection('projects')
-          .doc(projectId)
-          .collection('dpr')
-          .add({
-        'workDescription': _workDoneController.text.trim(),
-        'materialsUsed': _materialsUsedController.text.trim(),
-        'workersPresent': workersCount,
-        'images': cloudinaryUrls,
-        'status': 'Pending',
-        'uploadedByUid': currentUser.uid,
-        'uploadedAt': FieldValue.serverTimestamp(),
-        'engineerComment': null,
-      });
+      await DPRService.saveDpr(
+        projectId: projectId,
+        imageUrls: cloudinaryUrls,
+        workDescription: _workDoneController.text.trim(),
+        materialsUsed: _materialsUsedController.text.trim(),
+        workersPresent: workersCount,
+      );
       
       debugPrint('DPR Submit: DPR saved successfully to Firestore');
     } catch (e) {

@@ -36,21 +36,57 @@ class DPRModel {
   });
 
   factory DPRModel.fromJson(Map<String, dynamic> json) {
+    // Handle uploadedAt timestamp
+    DateTime createdAt = DateTime.now();
+    if (json['uploadedAt'] != null) {
+      if (json['uploadedAt'] is Timestamp) {
+        createdAt = (json['uploadedAt'] as Timestamp).toDate();
+      }
+    } else if (json['createdAt'] != null) {
+      if (json['createdAt'] is Timestamp) {
+        createdAt = (json['createdAt'] as Timestamp).toDate();
+      }
+    }
+
+    // Handle reviewedAt timestamp
+    DateTime? reviewedAt;
+    if (json['reviewedAt'] != null && json['reviewedAt'] is Timestamp) {
+      reviewedAt = (json['reviewedAt'] as Timestamp).toDate();
+    }
+
+    // Format date for display
+    final dateStr = '${createdAt.day}/${createdAt.month}/${createdAt.year}';
+
+    // Generate title from date
+    final title = 'DPR - $dateStr';
+
+    // Handle workers (can be int or string)
+    String workersStr = '';
+    if (json['workersPresent'] != null) {
+      if (json['workersPresent'] is int) {
+        workersStr = json['workersPresent'].toString();
+      } else {
+        workersStr = json['workersPresent'].toString();
+      }
+    } else if (json['workers'] != null) {
+      workersStr = json['workers'].toString();
+    }
+
     return DPRModel(
       id: json['id'] ?? '',
       projectId: json['projectId'] ?? '',
-      title: json['title'] ?? '',
-      date: json['date'] ?? '',
-      work: json['work'] ?? '',
-      materials: json['materials'] ?? '',
-      workers: json['workers'] ?? '',
-      photos: List<String>.from(json['photos'] ?? []),
-      status: json['status'] ?? 'draft',
-      comment: json['comment'],
-      submittedBy: json['submittedBy'] ?? '',
+      title: title,
+      date: dateStr,
+      work: json['workDescription'] ?? json['work'] ?? '',
+      materials: json['materialsUsed'] ?? json['materials'] ?? '',
+      workers: workersStr,
+      photos: List<String>.from(json['images'] ?? json['photos'] ?? []),
+      status: json['status'] ?? 'Pending',
+      comment: json['engineerComment'] ?? json['comment'],
+      submittedBy: json['uploadedByUid'] ?? json['submittedBy'] ?? '',
       reviewedBy: json['reviewedBy'],
-      createdAt: (json['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
-      reviewedAt: (json['reviewedAt'] as Timestamp?)?.toDate(),
+      createdAt: createdAt,
+      reviewedAt: reviewedAt,
       geoLocation: json['geoLocation'] as Map<String, dynamic>?,
     );
   }

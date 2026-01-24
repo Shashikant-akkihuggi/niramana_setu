@@ -8,6 +8,33 @@ class DPRService {
 
   static String? get currentUserId => _auth.currentUser?.uid;
 
+  /// Save DPR - ONE document per submission with ALL images
+  static Future<void> saveDpr({
+    required String projectId,
+    required List<String> imageUrls,
+    required String workDescription,
+    required String materialsUsed,
+    required int workersPresent,
+  }) async {
+    final currentUser = _auth.currentUser;
+    if (currentUser == null) throw Exception('User not authenticated');
+
+    await _firestore
+        .collection('projects')
+        .doc(projectId)
+        .collection('dpr')
+        .add({
+      'images': imageUrls,
+      'workDescription': workDescription,
+      'materialsUsed': materialsUsed,
+      'workersPresent': workersPresent,
+      'status': 'Pending',
+      'uploadedByUid': currentUser.uid,
+      'uploadedAt': FieldValue.serverTimestamp(),
+      'engineerComment': null,
+    });
+  }
+
   // Get DPRs for Engineer review (from all their projects)
   static Stream<List<DPRModel>> getEngineerDPRs() {
     if (currentUserId == null) return Stream.value([]);

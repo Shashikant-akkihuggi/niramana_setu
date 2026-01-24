@@ -1,8 +1,7 @@
 import 'package:flutter/material.dart';
 import 'dart:ui' as ui;
-import '../services/dpr_service.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../services/notification_service.dart';
-import '../models/dpr_model.dart';
 import '../common/project_context.dart';
 import 'engineer_dashboard.dart';
 
@@ -21,55 +20,13 @@ class DPRReviewScreen extends StatefulWidget {
 }
 
 class _DPRReviewScreenState extends State<DPRReviewScreen> {
-  void _openDetail(DPRModel dpr) async {
+  void _openDetail(String dprId, String projectId) async {
     await Navigator.push(
       context,
       MaterialPageRoute(
         builder: (_) => DPRDetailScreen(
-          dpr: dpr,
-          onStatusChanged: (status, comment) async {
-            try {
-              await DPRService.updateDPRStatus(dpr.projectId, dpr.id, status, comment);
-              
-              // Send notification to Manager
-              await NotificationService.notifyDPRApproval(
-                toUserId: dpr.submittedBy,
-                dprTitle: dpr.title,
-                projectId: dpr.projectId,
-                approved: status == 'approved',
-              );
-              
-              if (mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    behavior: SnackBarBehavior.floating,
-                    content: Row(
-                      children: [
-                        Icon(
-                          status == 'approved' ? Icons.check_circle : Icons.cancel,
-                          color: Colors.white,
-                        ),
-                        const SizedBox(width: 8),
-                        Text('DPR ${status == 'approved' ? 'approved' : 'rejected'}'),
-                      ],
-                    ),
-                    backgroundColor: status == 'approved' 
-                        ? const Color(0xFF15803D) 
-                        : const Color(0xFFB91C1C),
-                  ),
-                );
-              }
-            } catch (e) {
-              if (mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text('Error updating DPR: $e'),
-                    backgroundColor: Colors.red,
-                  ),
-                );
-              }
-            }
-          },
+          dprId: dprId,
+          projectId: projectId,
         ),
       ),
     );
@@ -148,8 +105,13 @@ class _DPRReviewScreenState extends State<DPRReviewScreen> {
         children: [
           _BackgroundEN(),
           SafeArea(
-            child: StreamBuilder<List<DPRModel>>(
-              stream: DPRService.getProjectDPRs(ProjectContext.activeProjectId!),
+            child: StreamBuilder<QuerySnapshot>(
+              stream: FirebaseFirestore.instance
+                  .collection('projects')
+                  .doc(ProjectContext.activeProjectId!)
+                  .collection('dpr')
+                  .orderBy('uploadedAt', descending: true)
+                  .snapshots(),
               builder: (context, snapshot) {
                 if (snapshot.connectionState == ConnectionState.waiting) {
                   return const Center(
@@ -191,9 +153,9 @@ class _DPRReviewScreenState extends State<DPRReviewScreen> {
                   );
                 }
 
-                final dprs = snapshot.data ?? [];
+                final docs = snapshot.data?.docs ?? [];
 
-                if (dprs.isEmpty) {
+                if (docs.isEmpty) {
                   return Center(
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
@@ -212,8 +174,8 @@ class _DPRReviewScreenState extends State<DPRReviewScreen> {
                             color: Color(0xFF1F2937),
                           ),
                         ),
-                        SizedBox(height: 8),
-                        Text(
+                        const SizedBox(height: 8),
+                        const Text(
                           'DPRs submitted by managers will appear here',
                           style: TextStyle(
                             color: Color(0xFF6B7280),
@@ -226,13 +188,16 @@ class _DPRReviewScreenState extends State<DPRReviewScreen> {
 
                 return ListView.separated(
                   padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
-                  itemCount: dprs.length,
+                  itemCount: docs.length,
                   separatorBuilder: (_, __) => const SizedBox(height: 12),
                   itemBuilder: (context, i) {
-                    final dpr = dprs[i];
+                    final doc = docs[i];
+                    final data = doc.data() as Map<String, dynamic>;
                     return _DPRCard(
-                      dpr: dpr,
-                      onTap: () => _openDetail(dpr),
+                      dprId: doc.id,
+                      projectId: ProjectContext.activeProjectId!,
+                      data: data,
+                      onTap: () => _openDetail(doc.id, ProjectContext.activeProjectId!),
                     );
                   },
                 );
@@ -246,12 +211,20 @@ class _DPRReviewScreenState extends State<DPRReviewScreen> {
 }
 
 class _DPRCard extends StatelessWidget {
-  final DPRModel dpr;
+  final String dprId;
+  final String projectId;
+  final Map<String, dynamic> data;
   final VoidCallback onTap;
-  const _DPRCard({required this.dpr, required this.onTap});
+  const _DPRCard({
+    required this.dprId,
+    required this.projectId,
+    required this.data,
+    required this.onTap,
+  });
 
   Color get statusColor {
-    switch (dpr.status) {
+    final status = (data['status'] ?? 'Pending').toString().toLowerCase();
+    switch (status) {
       case 'approved':
         return const Color(0xFF16A34A);
       case 'rejected':
@@ -262,14 +235,26 @@ class _DPRCard extends StatelessWidget {
   }
 
   String get statusLabel {
-    switch (dpr.status) {
-      case 'approved':
-        return 'Approved';
-      case 'rejected':
-        return 'Rejected';
-      default:
-        return 'Pending';
+    final status = (data['status'] ?? 'Pending').toString();
+    return status;
+  }
+
+  String get title {
+    final uploadedAt = data['uploadedAt'] as Timestamp?;
+    if (uploadedAt != null) {
+      final date = uploadedAt.toDate();
+      return 'DPR - ${date.day}/${date.month}/${date.year}';
     }
+    return 'DPR';
+  }
+
+  String get date {
+    final uploadedAt = data['uploadedAt'] as Timestamp?;
+    if (uploadedAt != null) {
+      final d = uploadedAt.toDate();
+      return '${d.day.toString().padLeft(2, '0')}-${d.month.toString().padLeft(2, '0')}-${d.year}';
+    }
+    return '';
   }
 
   @override
@@ -310,9 +295,9 @@ class _DPRCard extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(dpr.title, style: const TextStyle(fontWeight: FontWeight.w800, color: Color(0xFF1F2937))),
+                      Text(title, style: const TextStyle(fontWeight: FontWeight.w800, color: Color(0xFF1F2937))),
                       const SizedBox(height: 4),
-                      Text(dpr.date, style: const TextStyle(color: Color(0xFF4B5563))),
+                      Text(date, style: const TextStyle(color: Color(0xFF4B5563))),
                     ],
                   ),
                 ),
@@ -334,74 +319,229 @@ class _DPRCard extends StatelessWidget {
   }
 }
 
-class DPRDetailScreen extends StatelessWidget {
-  final DPRModel dpr;
-  final void Function(String status, String comment) onStatusChanged;
-  const DPRDetailScreen({super.key, required this.dpr, required this.onStatusChanged});
+class DPRDetailScreen extends StatefulWidget {
+  final String dprId;
+  final String projectId;
+  const DPRDetailScreen({
+    super.key,
+    required this.dprId,
+    required this.projectId,
+  });
+
+  @override
+  State<DPRDetailScreen> createState() => _DPRDetailScreenState();
+}
+
+class _DPRDetailScreenState extends State<DPRDetailScreen> {
+  final _commentController = TextEditingController();
+
+  Future<void> _updateStatus(String status, String comment, Map<String, dynamic> data) async {
+    try {
+      await FirebaseFirestore.instance
+          .collection('projects')
+          .doc(widget.projectId)
+          .collection('dpr')
+          .doc(widget.dprId)
+          .update({
+        'status': status,
+        'engineerComment': comment.isEmpty ? null : comment,
+        'reviewedAt': FieldValue.serverTimestamp(),
+      });
+
+      // Send notification to Manager
+      final uploadedByUid = data['uploadedByUid'] as String?;
+      if (uploadedByUid != null) {
+        final uploadedAt = data['uploadedAt'] as Timestamp?;
+        final date = uploadedAt?.toDate();
+        final title = date != null ? 'DPR - ${date.day}/${date.month}/${date.year}' : 'DPR';
+        
+        await NotificationService.notifyDPRApproval(
+          toUserId: uploadedByUid,
+          dprTitle: title,
+          projectId: widget.projectId,
+          approved: status == 'Approved',
+        );
+      }
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            behavior: SnackBarBehavior.floating,
+            content: Row(
+              children: [
+                Icon(
+                  status == 'Approved' ? Icons.check_circle : Icons.cancel,
+                  color: Colors.white,
+                ),
+                const SizedBox(width: 8),
+                Text('DPR ${status == 'Approved' ? 'approved' : 'rejected'}'),
+              ],
+            ),
+            backgroundColor: status == 'Approved'
+                ? const Color(0xFF15803D)
+                : const Color(0xFFB91C1C),
+          ),
+        );
+        Navigator.of(context).pop();
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error updating DPR: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  @override
+  void dispose() {
+    _commentController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
-    final commentController = TextEditingController(text: dpr.comment ?? '');
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(dpr.title),
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-      ),
-      extendBodyBehindAppBar: true,
-      body: Stack(
-        children: [
-          _BackgroundEN(),
-          SafeArea(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 120),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  _HeaderMeta(date: dpr.date, status: dpr.status),
-                  const SizedBox(height: 16),
-                  _GlassBlock(title: 'Work Description', icon: Icons.task_alt_rounded, child: Text(dpr.work)),
-                  const SizedBox(height: 12),
-                  _GlassBlock(title: 'Materials Used', icon: Icons.inventory_2_rounded, child: Text(dpr.materials)),
-                  const SizedBox(height: 12),
-                  _GlassBlock(title: 'Workers Present', icon: Icons.groups_rounded, child: Text(dpr.workers)),
-                  const SizedBox(height: 12),
-                  _PhotoGrid(photos: dpr.photos),
-                  const SizedBox(height: 12),
-                  _GlassBlock(
-                    title: 'Engineer Comment',
-                    icon: Icons.comment_rounded,
-                    child: TextField(
-                      controller: commentController,
-                      decoration: const InputDecoration(
-                        border: InputBorder.none,
-                        hintText: 'Optional comment...'
-                      ),
-                      maxLines: 3,
-                    ),
-                  ),
-                ],
-              ),
+    return StreamBuilder<DocumentSnapshot>(
+      stream: FirebaseFirestore.instance
+          .collection('projects')
+          .doc(widget.projectId)
+          .collection('dpr')
+          .doc(widget.dprId)
+          .snapshots(),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return Scaffold(
+            appBar: AppBar(
+              title: const Text('DPR Details'),
+              backgroundColor: Colors.transparent,
+              elevation: 0,
             ),
+            extendBodyBehindAppBar: true,
+            body: Stack(
+              children: [
+                _BackgroundEN(),
+                const Center(child: CircularProgressIndicator()),
+              ],
+            ),
+          );
+        }
+
+        if (!snapshot.hasData || !snapshot.data!.exists) {
+          return Scaffold(
+            appBar: AppBar(
+              title: const Text('DPR Details'),
+              backgroundColor: Colors.transparent,
+              elevation: 0,
+            ),
+            extendBodyBehindAppBar: true,
+            body: Stack(
+              children: [
+                _BackgroundEN(),
+                const Center(child: Text('DPR not found')),
+              ],
+            ),
+          );
+        }
+
+        final data = snapshot.data!.data() as Map<String, dynamic>;
+        
+        // DEBUG: Print data to confirm it exists
+        print('🔍 DPR DETAIL DATA: $data');
+
+        // Extract fields
+        final images = List<String>.from(data['images'] ?? []);
+        final workDescription = data['workDescription'] ?? '';
+        final materialsUsed = data['materialsUsed'] ?? '';
+        final workersPresent = data['workersPresent'] ?? 0;
+        final status = data['status'] ?? 'Pending';
+        final engineerComment = data['engineerComment'] ?? '';
+        
+        // Set initial comment
+        if (_commentController.text.isEmpty && engineerComment.isNotEmpty) {
+          _commentController.text = engineerComment;
+        }
+
+        // Format date
+        final uploadedAt = data['uploadedAt'] as Timestamp?;
+        String dateStr = '';
+        String title = 'DPR Details';
+        if (uploadedAt != null) {
+          final date = uploadedAt.toDate();
+          dateStr = '${date.day.toString().padLeft(2, '0')}-${date.month.toString().padLeft(2, '0')}-${date.year}';
+          title = 'DPR - ${date.day}/${date.month}/${date.year}';
+        }
+
+        return Scaffold(
+          appBar: AppBar(
+            title: Text(title),
+            backgroundColor: Colors.transparent,
+            elevation: 0,
           ),
-          if (dpr.status == 'pending')
-            Positioned(
-              left: 16,
-              right: 16,
-              bottom: 16,
-              child: _ApproveRejectBar(
-                onApprove: () {
-                  onStatusChanged('approved', commentController.text.trim());
-                  Navigator.of(context).pop();
-                },
-                onReject: () {
-                  onStatusChanged('rejected', commentController.text.trim());
-                  Navigator.of(context).pop();
-                },
+          extendBodyBehindAppBar: true,
+          body: Stack(
+            children: [
+              _BackgroundEN(),
+              SafeArea(
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 120),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      _HeaderMeta(date: dateStr, status: status),
+                      const SizedBox(height: 16),
+                      _GlassBlock(
+                        title: 'Work Description',
+                        icon: Icons.task_alt_rounded,
+                        child: Text(workDescription.isEmpty ? 'No description provided' : workDescription),
+                      ),
+                      const SizedBox(height: 12),
+                      _GlassBlock(
+                        title: 'Materials Used',
+                        icon: Icons.inventory_2_rounded,
+                        child: Text(materialsUsed.isEmpty ? 'No materials listed' : materialsUsed),
+                      ),
+                      const SizedBox(height: 12),
+                      _GlassBlock(
+                        title: 'Workers Present',
+                        icon: Icons.groups_rounded,
+                        child: Text(workersPresent.toString()),
+                      ),
+                      const SizedBox(height: 12),
+                      _PhotoGrid(photos: images),
+                      const SizedBox(height: 12),
+                      _GlassBlock(
+                        title: 'Engineer Comment',
+                        icon: Icons.comment_rounded,
+                        child: TextField(
+                          controller: _commentController,
+                          decoration: const InputDecoration(
+                            border: InputBorder.none,
+                            hintText: 'Optional comment...',
+                          ),
+                          maxLines: 3,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
               ),
-            ),
-        ],
-      ),
+              if (status.toLowerCase() == 'pending')
+                Positioned(
+                  left: 16,
+                  right: 16,
+                  bottom: 16,
+                  child: _ApproveRejectBar(
+                    onApprove: () => _updateStatus('Approved', _commentController.text.trim(), data),
+                    onReject: () => _updateStatus('Rejected', _commentController.text.trim(), data),
+                  ),
+                ),
+            ],
+          ),
+        );
+      },
     );
   }
 }
@@ -542,6 +682,29 @@ class _PhotoGrid extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (photos.isEmpty) {
+      return ClipRRect(
+        borderRadius: BorderRadius.circular(18),
+        child: BackdropFilter(
+          filter: ui.ImageFilter.blur(sigmaX: 16, sigmaY: 16),
+          child: Container(
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.55),
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(color: Colors.white.withValues(alpha: 0.45)),
+            ),
+            padding: const EdgeInsets.all(14),
+            child: const Center(
+              child: Text(
+                'No images attached',
+                style: TextStyle(color: Color(0xFF6B7280)),
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
     return ClipRRect(
       borderRadius: BorderRadius.circular(18),
       child: BackdropFilter(
@@ -553,37 +716,69 @@ class _PhotoGrid extends StatelessWidget {
             border: Border.all(color: Colors.white.withValues(alpha: 0.45)),
           ),
           padding: const EdgeInsets.all(14),
-          child: GridView.builder(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            itemCount: photos.length,
-            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: 3,
-              crossAxisSpacing: 8,
-              mainAxisSpacing: 8,
-            ),
-            itemBuilder: (context, i) {
-              return ClipRRect(
-                borderRadius: BorderRadius.circular(12),
-                child: Container(
-                  decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.6),
-                    border: Border.all(color: Colors.white.withValues(alpha: 0.45)),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  const Icon(Icons.photo_library, color: Color(0xFF374151)),
+                  const SizedBox(width: 8),
+                  Text(
+                    'Images (${photos.length})',
+                    style: const TextStyle(fontWeight: FontWeight.w800, color: Color(0xFF1F2937)),
                   ),
-                  child: Stack(
-                    fit: StackFit.expand,
-                    children: [
-                      Container(color: Colors.grey[300]),
-                      Center(
-                        child: Text(
-                          photos[i],
-                          style: const TextStyle(color: Color(0xFF374151), fontWeight: FontWeight.w700)),
-                      ),
-                    ],
-                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              GridView.builder(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                itemCount: photos.length,
+                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: 3,
+                  crossAxisSpacing: 8,
+                  mainAxisSpacing: 8,
                 ),
-              );
-            },
+                itemBuilder: (context, i) {
+                  return ClipRRect(
+                    borderRadius: BorderRadius.circular(12),
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.6),
+                        border: Border.all(color: Colors.white.withValues(alpha: 0.45)),
+                      ),
+                      child: Stack(
+                        fit: StackFit.expand,
+                        children: [
+                          Image.network(
+                            photos[i],
+                            fit: BoxFit.cover,
+                            loadingBuilder: (context, child, loadingProgress) {
+                              if (loadingProgress == null) return child;
+                              return Center(
+                                child: CircularProgressIndicator(
+                                  value: loadingProgress.expectedTotalBytes != null
+                                      ? loadingProgress.cumulativeBytesLoaded /
+                                          loadingProgress.expectedTotalBytes!
+                                      : null,
+                                  strokeWidth: 2,
+                                ),
+                              );
+                            },
+                            errorBuilder: (context, error, stackTrace) {
+                              return Container(
+                                color: Colors.grey[300],
+                                child: const Icon(Icons.error, color: Colors.red),
+                              );
+                            },
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ],
           ),
         ),
       ),

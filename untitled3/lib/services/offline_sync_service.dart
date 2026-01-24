@@ -144,12 +144,11 @@ class OfflineSyncService {
         // Validate project ID
         if (dpr.projectId == null || dpr.projectId!.isEmpty) {
           debugPrint('OfflineSync: DPR ${dpr.id} has no projectId, skipping...');
-          // Delete invalid entry
           await _offlineDprBox.delete(dpr.key);
           continue;
         }
         
-        // Step 1: Upload images to Cloudinary first
+        // Step 1: Upload images to Cloudinary
         List<String> cloudinaryUrls = [];
         if (dpr.localImagePaths.isNotEmpty) {
           debugPrint('OfflineSync: Uploading ${dpr.localImagePaths.length} images to Cloudinary...');
@@ -160,13 +159,12 @@ class OfflineSyncService {
               .toList();
           
           if (imageFiles.isNotEmpty) {
-            // Use the improved CloudinaryService with compression and retry
             cloudinaryUrls = await CloudinaryService.uploadMultipleImages(imageFiles) ?? [];
             debugPrint('OfflineSync: ${cloudinaryUrls.length}/${imageFiles.length} images uploaded successfully');
             
             if (cloudinaryUrls.length != imageFiles.length) {
               debugPrint('OfflineSync: Image upload incomplete for DPR ${dpr.id}, skipping for now');
-              continue; // Skip this DPR and try again later
+              continue;
             }
           }
         }
@@ -174,13 +172,12 @@ class OfflineSyncService {
         // Step 2: Parse workersPresent as int
         int workersCount = 0;
         try {
-          // Try to parse as number, if it fails, count comma-separated names
           workersCount = int.tryParse(dpr.workersPresent) ?? dpr.workersPresent.split(',').length;
         } catch (e) {
           workersCount = 0;
         }
         
-        // Step 3: Save one DPR document with all images to project-scoped Firestore path
+        // Step 3: Save ONE DPR document using DPRService
         debugPrint('OfflineSync: Saving DPR with ${cloudinaryUrls.length} images to projects/${dpr.projectId}/dpr');
         
         await FirebaseFirestore.instance
@@ -188,10 +185,10 @@ class OfflineSyncService {
             .doc(dpr.projectId!)
             .collection('dpr')
             .add({
+          'images': cloudinaryUrls,
           'workDescription': dpr.workDone,
           'materialsUsed': dpr.materialsUsed,
           'workersPresent': workersCount,
-          'images': cloudinaryUrls,
           'status': 'Pending',
           'uploadedByUid': dpr.createdBy,
           'uploadedAt': FieldValue.serverTimestamp(),
@@ -207,7 +204,6 @@ class OfflineSyncService {
       } catch (e, stackTrace) {
         debugPrint("OfflineSync: Failed to sync DPR ${dpr.id}: $e");
         debugPrint("OfflineSync: Stack trace: $stackTrace");
-        // Don't delete the entry, let it retry on next sync
       }
     }
   }
@@ -219,11 +215,9 @@ class OfflineSyncService {
     final unsynced = _dprBox.values.where((e) => e['isSynced'] == false).toList();
     for (var entry in unsynced) {
       try {
-        // Convert Map<dynamic, dynamic> to Map<String, dynamic> if needed
         final payload = Map<String, dynamic>.from(entry['payload'] as Map);
         
-        // Legacy entries without projectId cannot be synced to project-scoped path
-        // Delete them to prevent permission errors
+        // Legacy entries without projectId cannot be synced
         if (payload['projectId'] == null || payload['projectId'].toString().isEmpty) {
           debugPrint("OfflineSync: Legacy DPR ${entry['id']} has no projectId, removing...");
           await _dprBox.delete(entry['id']);
@@ -239,26 +233,25 @@ class OfflineSyncService {
           workersCount = 0;
         }
         
-        // Save to project-scoped path as one document with all images
+        // Save ONE document with ALL images
         final projectId = payload['projectId'].toString();
-        final imageUrls = payload['imageUrls'] as List? ?? [];
+        final imageUrls = List<String>.from(payload['imageUrls'] as List? ?? []);
         
         await FirebaseFirestore.instance
             .collection('projects')
             .doc(projectId)
             .collection('dpr')
             .add({
+          'images': imageUrls,
           'workDescription': payload['workDone'] ?? '',
           'materialsUsed': payload['materialsUsed'] ?? '',
           'workersPresent': workersCount,
-          'images': imageUrls,
           'status': 'Pending',
           'uploadedByUid': payload['createdBy'],
           'uploadedAt': FieldValue.serverTimestamp(),
           'engineerComment': null,
         });
         
-        // Delete from Hive on success
         await _dprBox.delete(entry['id']);
         debugPrint("OfflineSync: Legacy DPR synced: ${entry['id']}");
       } catch (e) {

@@ -7,25 +7,6 @@ class _GalleryTheme {
   static const Color accent = Color(0xFF7A5AF8);
 }
 
-class _PhotoDoc {
-  final String id;
-  final String url;
-  final String description;
-  final DateTime approvedAt;
-  final String title;
-  _PhotoDoc({required this.id, required this.url, required this.description, required this.approvedAt, required this.title});
-  static _PhotoDoc fromFirestore(DocumentSnapshot doc) {
-    final d = doc.data() as Map<String, dynamic>;
-    return _PhotoDoc(
-      id: doc.id,
-      url: d['url'] ?? '',
-      description: d['description'] ?? '',
-      approvedAt: (d['approvedAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
-      title: d['title'] ?? '',
-    );
-  }
-}
-
 class OwnerGalleryScreen extends StatelessWidget {
   final String projectId;
   const OwnerGalleryScreen({super.key, required this.projectId});
@@ -34,18 +15,31 @@ class OwnerGalleryScreen extends StatelessWidget {
     return FirebaseFirestore.instance
         .collection('projects')
         .doc(projectId)
-        .collection('photos')
-        .where('status', isEqualTo: 'approved')
-        .orderBy('approvedAt', descending: true)
+        .collection('dpr')
+        .orderBy('uploadedAt', descending: true)
         .snapshots()
-        .map((s) => s.docs.map(_PhotoDoc.fromFirestore).map((p) => _GalleryItem(
-              photoId: p.url,
-              date: _fmtDate(p.approvedAt),
-              description: p.description,
-              status: 'approved',
-              engineerNote: '',
-              title: p.title,
-            )).toList());
+        .map((snapshot) {
+          final List<_GalleryItem> items = [];
+          for (var doc in snapshot.docs) {
+            final data = doc.data();
+            final images = List<String>.from(data['images'] ?? []);
+            final uploadedAt = (data['uploadedAt'] as Timestamp?)?.toDate() ?? DateTime.now();
+            final workDescription = data['workDescription'] ?? '';
+            
+            // Create one gallery item per image
+            for (int i = 0; i < images.length; i++) {
+              items.add(_GalleryItem(
+                photoId: images[i],
+                date: _fmtDate(uploadedAt),
+                description: workDescription,
+                status: data['status'] ?? 'Pending',
+                engineerNote: data['engineerComment'] ?? '',
+                title: 'DPR - ${_fmtDate(uploadedAt)}',
+              ));
+            }
+          }
+          return items;
+        });
   }
 
   static String _fmtDate(DateTime d) {
@@ -134,9 +128,19 @@ class _GalleryCard extends StatelessWidget {
   final _GalleryItem item;
   const _GalleryCard({required this.item});
 
+  Color _getStatusColor(String status) {
+    switch (status.toLowerCase()) {
+      case 'approved':
+        return const Color(0xFF16A34A);
+      case 'rejected':
+        return const Color(0xFFDC2626);
+      default:
+        return const Color(0xFFF59E0B);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    const statusColor = Color(0xFF16A34A); // Approved
     return GestureDetector(
       onTap: () {
         Navigator.push(
@@ -210,14 +214,14 @@ class _GalleryCard extends StatelessWidget {
                             Container(
                               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                               decoration: BoxDecoration(
-                                color: statusColor.withValues(alpha: 0.12),
+                                color: _getStatusColor(item.status).withValues(alpha: 0.12),
                                 borderRadius: BorderRadius.circular(12),
-                                border: Border.all(color: statusColor.withValues(alpha: 0.35)),
+                                border: Border.all(color: _getStatusColor(item.status).withValues(alpha: 0.35)),
                               ),
-                              child: const Text(
-                                'Approved',
+                              child: Text(
+                                item.status,
                                 style: TextStyle(
-                                  color: statusColor,
+                                  color: _getStatusColor(item.status),
                                   fontWeight: FontWeight.w600,
                                   fontSize: 10,
                                 ),
