@@ -51,58 +51,56 @@ class OwnerGalleryScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Stack(
-      children: [
-        _Background(),
-        SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Header
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
-                  child: Text(
-                    'Progress Gallery',
-                    style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                      fontWeight: FontWeight.w600, // Consistent font weight
-                      color: const Color(0xFF1F1F1F),
+    return Scaffold(
+      backgroundColor: Colors.transparent,
+      appBar: AppBar(
+        title: const Text('Progress Gallery'),
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+      ),
+      extendBodyBehindAppBar: true,
+      body: Stack(
+        children: [
+          _Background(),
+          SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const SizedBox(height: 8),
+                  // Grid - FIX: Responsive grid with better aspect ratio handling
+                  Expanded(
+                    child: StreamBuilder<List<_GalleryItem>>(
+                      stream: _items(),
+                      builder: (context, snapshot) {
+                        final items = snapshot.data ?? const <_GalleryItem>[];
+                        return LayoutBuilder(
+                          builder: (context, constraints) {
+                            final screenWidth = constraints.maxWidth;
+                            final crossAxisCount = screenWidth > 600 ? 3 : 2;
+                            final childAspectRatio = screenWidth > 600 ? 0.85 : 0.82;
+                            return GridView.builder(
+                              gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                                crossAxisCount: crossAxisCount,
+                                crossAxisSpacing: 12,
+                                mainAxisSpacing: 12,
+                                childAspectRatio: childAspectRatio,
+                              ),
+                              itemCount: items.length,
+                              itemBuilder: (context, i) => _GalleryCard(item: items[i]),
+                            );
+                          },
+                        );
+                      },
                     ),
                   ),
-                ),
-                const SizedBox(height: 8),
-                // Grid - FIX: Responsive grid with better aspect ratio handling
-                Expanded(
-                  child: StreamBuilder<List<_GalleryItem>>(
-                    stream: _items(),
-                    builder: (context, snapshot) {
-                      final items = snapshot.data ?? const <_GalleryItem>[];
-                      return LayoutBuilder(
-                        builder: (context, constraints) {
-                          final screenWidth = constraints.maxWidth;
-                          final crossAxisCount = screenWidth > 600 ? 3 : 2;
-                          final childAspectRatio = screenWidth > 600 ? 0.85 : 0.82;
-                          return GridView.builder(
-                            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                              crossAxisCount: crossAxisCount,
-                              crossAxisSpacing: 12,
-                              mainAxisSpacing: 12,
-                              childAspectRatio: childAspectRatio,
-                            ),
-                            itemCount: items.length,
-                            itemBuilder: (context, i) => _GalleryCard(item: items[i]),
-                          );
-                        },
-                      );
-                    },
-                  ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 }
