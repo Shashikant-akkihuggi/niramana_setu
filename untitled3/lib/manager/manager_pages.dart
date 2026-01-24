@@ -897,14 +897,9 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
   }
 
   void _loadDefaultWorkers() {
-    // Default workers list - in a real app, this could come from project settings
-    _workers = [
-      WorkerAttendance(name: 'Aman Kumar', role: 'Mason', present: false),
-      WorkerAttendance(name: 'Ravi Singh', role: 'Helper', present: false),
-      WorkerAttendance(name: 'Meera Nair', role: 'Electrician', present: false),
-      WorkerAttendance(name: 'Sanjay Patil', role: 'Carpenter', present: false),
-      WorkerAttendance(name: 'Priya Verma', role: 'Supervisor', present: false),
-    ];
+    // Start with empty list - Field Manager will add workers
+    // Workers are loaded from Firestore when a project is selected
+    _workers = [];
   }
 
   Future<void> _loadAttendanceForDate() async {

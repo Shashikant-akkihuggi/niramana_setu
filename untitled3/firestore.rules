@@ -212,9 +212,40 @@ service cloud.firestore {
     }
     
     // Attendance - Subcollection under projects
+    // Path: projects/{projectId}/attendance/{attendanceId}
+    //
+    // Role-based access:
+    // - Field Manager: Create & Mark (read/write) - if assigned to project
+    // - Engineer: View only (read) - if assigned to project
+    // - Owner: View only (read) - if assigned to project
+    // - Purchase Manager: No Access
+    //
+    // Security: Uses isProjectMember() which validates user is assigned to the project
     match /projects/{projectId}/attendance/{attendanceId} {
-      allow read: if isAuthenticated() && isProjectMember(projectId);
-      allow write: if isAuthenticated() && isFieldManager() && isProjectMember(projectId);
+      // Read access for Field Manager, Engineer, Owner (NOT Purchase Manager)
+      allow read: if isAuthenticated() 
+        && !isPurchaseManager()
+        && isProjectMember(projectId);
+      
+      // Create access: Only Field Manager can create attendance
+      // Validates:
+      // 1. User is authenticated
+      // 2. User role is Field Manager
+      // 3. User is assigned to the project
+      // 4. recordedBy matches current user
+      allow create: if isAuthenticated() 
+        && isFieldManager()
+        && isProjectMember(projectId)
+        && request.resource.data.recordedBy == request.auth.uid;
+      
+      // Update access: Only Field Manager who created the record can update
+      allow update: if isAuthenticated() 
+        && isFieldManager()
+        && isProjectMember(projectId)
+        && resource.data.recordedBy == request.auth.uid;
+      
+      // Delete: Disabled - attendance records should not be deleted
+      allow delete: if false;
     }
     
     // Default deny all other collections

@@ -3,7 +3,7 @@ import 'package:hive_flutter/hive_flutter.dart';
 import 'dart:ui' as ui;
 import 'manager_pages.dart';
 import 'manager_project_card.dart';
-import 'attendance.dart' as att;
+// NOTE: Removed demo attendance.dart import - using real AttendanceScreen from manager_pages.dart
 import 'screens/manager_profile_screen.dart';
 import '../common/notifications.dart';
 import '../common/services/logout_service.dart';
@@ -42,7 +42,7 @@ class _FieldManagerDashboardState extends State<FieldManagerDashboard> {
           ManagerHomeScreen(), // Home with features
           ManagerProjectsScreen(), // Projects
           MaterialsScreen(), // Materials
-          att.AttendanceScreen(), // Attendance
+          AttendanceScreen(), // Attendance - REAL screen from manager_pages.dart (uses Firestore)
         ];
 
     return Scaffold(
