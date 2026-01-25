@@ -179,8 +179,10 @@ class _PlotEntryScreenState extends State<PlotEntryScreen> {
               // Location & Road
               _buildTextField(
                 controller: _cityController,
-                label: "City",
-                icon: Icons.location_city,
+                label: "Pincode",
+                icon: Icons.pin_drop,
+                isInteger: true,
+                maxLength: 6,
               ),
               const SizedBox(height: 16),
               
@@ -281,6 +283,7 @@ class _PlotEntryScreenState extends State<PlotEntryScreen> {
     required String label,
     required IconData icon,
     bool isInteger = false,
+    int? maxLength,
   }) {
     return TextFormField(
       controller: controller,
@@ -290,13 +293,16 @@ class _PlotEntryScreenState extends State<PlotEntryScreen> {
             ? FilteringTextInputFormatter.digitsOnly
             : FilteringTextInputFormatter.allow(RegExp(r'^\d+\.?\d*')),
       ],
+      maxLength: maxLength,
       validator: (value) {
         if (value == null || value.isEmpty) return 'Required';
+        if (label == "Pincode" && value.length != 6) return 'Enter 6-digit pincode';
         return null;
       },
       decoration: InputDecoration(
         labelText: label,
         prefixIcon: Icon(icon, color: const Color(0xFF4F4F4F)),
+        counterText: maxLength != null ? '' : null,
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(8),
           borderSide: BorderSide(color: Colors.grey.shade300),

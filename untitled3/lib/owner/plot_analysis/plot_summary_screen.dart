@@ -176,6 +176,7 @@ class _PlotSummaryScreenState extends State<PlotSummaryScreen> {
                               plotLength: length,
                               plotWidth: width,
                               floors: widget.plotData['floors'] ?? 1,
+                              pincode: widget.plotData['city'] ?? '', // City field now contains pincode
                             ),
                           ),
                         );
@@ -587,6 +588,7 @@ class _AiConceptResultDialog extends StatelessWidget {
                               plotWidth: result.buildingModel.plotWidth,
                               floors: result.buildingModel.floors,
                               buildingModel: result.buildingModel,
+                              pincode: '', // No pincode in AI-generated concepts
                             ),
                           ),
                         );
